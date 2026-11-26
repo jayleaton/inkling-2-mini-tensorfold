@@ -38,6 +38,10 @@ License, Version 2.0 ([`LICENSE`](LICENSE)). The image `scripts/prepare.sh` buil
 - **gilby** ([gilby](https://github.com/gilby)): Mini's Metal kernels, DSpark prompt cache and snapshot fixes.
 - **akol1** ([akol1](https://github.com/akol1)): the plan for Inkling 2 Mini on CUDA and Metal in claimable slices
   ([#4274](https://github.com/ashhart/TensorFold/pull/4274)).
+- **Jay Leaton** ([jayleaton](https://github.com/jayleaton)): Mini's kept states on disk (patch `0019`, `mini_disk.zig`), the kept view
+  `--prompt-cache-disk` reads. It joins TensorFold's NVMe session tier: ashhart's kept states written behind to disk and read back
+  (`native/cuda_disk.zig`, `--learn-conversations`) and Jürgen Schmied's one kept image for states in device buffers
+  (`native/cuda_kept.zig`, [#3135](https://github.com/ashhart/TensorFold/pull/3135)).
 - **[xgrammar](https://github.com/mlc-ai/xgrammar)** by the MLC-AI team (Apache-2.0): `libtfgrammar.so`, built from the patched tree over xgrammar
   v0.2.8 at its pinned commit (its license, NOTICE and dlpack's license ship in the image).
 - **[libjpeg-turbo](https://libjpeg-turbo.org)** 3.1.4.1 (IJG, BSD-3-Clause and zlib licenses) and **[libwebp](https://chromium.googlesource.com/webm/libwebp)**
