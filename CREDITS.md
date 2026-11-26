@@ -49,6 +49,59 @@ License, Version 2.0 ([`LICENSE`](LICENSE)). The image `scripts/prepare.sh` buil
 - **NVIDIA**: the [PyTorch container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch) the image is based on, and Model Optimizer
   (the checkpoint's format).
 
+## Mac (Metal)
+
+The `mac/` recipe serves the same checkpoint through TensorFold's native Metal `inkling2_loop` path: upstream TensorFold `main` pinned at
+`920fe22c9` plus two upstream PRs carried as `mac/patches/` ([#4622](https://github.com/ashhart/TensorFold/pull/4622),
+[#4917](https://github.com/ashhart/TensorFold/pull/4917)). Nothing of the CUDA engine or `patches/` above is built there; from this repository's
+recipe the Mac build takes the layout and the shared test tools (`tools/exact.py`, `tools/prompt_reuse.py` and the rest). Every PR below is
+merged into the pinned `920fe22c9` unless marked open.
+
+- **Ash Hart** ([ashhart](https://github.com/ashhart)): Inkling 2 Mini on Metal itself, the clean-room Mini kernels with their contracts and
+  native serving with admission, keepalive and prompt logprobs ([#4387](https://github.com/ashhart/TensorFold/pull/4387), "Inkling 2 Mini on
+  CUDA and Metal"); the routed-experts-and-combine and router-and-loop-gate kernels, a thread an output
+  ([#4894](https://github.com/ashhart/TensorFold/pull/4894), [#4912](https://github.com/ashhart/TensorFold/pull/4912)); and the serving fixes
+  whose thinking-off requests reach the template as effort 0 ([#4876](https://github.com/ashhart/TensorFold/pull/4876)) and whose required tool
+  calls use the template's own message format ([#4898](https://github.com/ashhart/TensorFold/pull/4898)).
+- **sethforprivacy** ([sethforprivacy](https://github.com/sethforprivacy)): the Metal loader's per-read cap that lets a checkpoint span of
+  16 GiB or more load ([#4435](https://github.com/ashhart/TensorFold/pull/4435); the Mac build's 18 GiB shard goes through it), the DSpark
+  fixes on Metal, the 1/sqrt(128) attention scale and the recurrent step's kappa read as FP32
+  ([#4447](https://github.com/ashhart/TensorFold/pull/4447)), and the DSpark overhaul the engine holds in one command buffer with drafts
+  priced up to the whole block ([#4465](https://github.com/ashhart/TensorFold/pull/4465), open); the window-fit fix that prices a drafted
+  token at a token's bytes, carried as patch `0001` ([#4622](https://github.com/ashhart/TensorFold/pull/4622), open).
+- **cwschroeder** ([cwschroeder](https://github.com/cwschroeder)): the native Metal DFlash 2 drafter for `DFlash2DraftModel` folders such as
+  Inco AI's, with its weights and config validation, its BF16 kernels and the adaptive depth timing that unlocks full draft blocks
+  ([#4917](https://github.com/ashhart/TensorFold/pull/4917), open; patch `0002`).
+- **BlivionIaG** ([BlivionIaG](https://github.com/BlivionIaG)): images under `--vision` on Metal, the tower, the processor and their contract
+  ([#4704](https://github.com/ashhart/TensorFold/pull/4704)); the startup line's report of the asked streams' demand
+  ([#4705](https://github.com/ashhart/TensorFold/pull/4705)); prompt experts, projections and loop gates on simdgroup matrices without tensor
+  units, with 256-row prompt chunks, one attention-residual launch a chunk and a combine that sorts a token's routes once
+  ([#4756](https://github.com/ashhart/TensorFold/pull/4756)); and decode without tensor units, 9 to about 21 tok/s, every output bit equal to
+  main's ([#4919](https://github.com/ashhart/TensorFold/pull/4919)).
+- **gilby** ([gilby](https://github.com/gilby)): the DSpark Metal kernel overhaul on main, batched multi-stream speculative drafting, softmax
+  chances and two-pass GPU top-k, sethforprivacy's #4465 rebased
+  ([#4699](https://github.com/ashhart/TensorFold/pull/4699)); the DSpark lane-state snapshots the Metal prompt cache restores
+  ([#4542](https://github.com/ashhart/TensorFold/pull/4542)); and the Metal kernels in the pin: threadgroup reservations matched and load
+  guards enforced ([#4981](https://github.com/ashhart/TensorFold/pull/4981)), exact-serial grouped routed experts for two rows or more
+  ([#4995](https://github.com/ashhart/TensorFold/pull/4995)), ceiling-pow2 dense dispatch and guarded `bf16_matvec`
+  ([#4998](https://github.com/ashhart/TensorFold/pull/4998)), the relative-bias projection fused into decode and prompt attention
+  ([#5000](https://github.com/ashhart/TensorFold/pull/5000)), depth-block `inv_rms` cached with partial updates fused into AR reductions
+  ([#5001](https://github.com/ashhart/TensorFold/pull/5001)), and the prompt-attention thread qualifiers
+  ([#4980](https://github.com/ashhart/TensorFold/pull/4980)).
+- **plotarmordev** ([plotarmordev](https://github.com/plotarmordev)): the Inkling 2 Mini load and serve refusals, mismatched head widths and
+  block splits at load, out-of-vocabulary ids and expired token handles at serve
+  ([#4990](https://github.com/ashhart/TensorFold/pull/4990)).
+- **Nipale-ai** ([Nipale-ai](https://github.com/Nipale-ai)): the Inkling 2 family's host package, the config parsing that refuses layouts the
+  engine does not run, the weight map checked against the checkpoint's headers, the layer plan, and the chat template and tokenizer checks
+  ([#3578](https://github.com/ashhart/TensorFold/pull/3578)), on the `float` filter the template core needed for it
+  ([#3577](https://github.com/ashhart/TensorFold/pull/3577)).
+- **[xgrammar](https://github.com/mlc-ai/xgrammar)** by the MLC-AI team: on macOS this recipe compiles upstream xgrammar `v0.2.8` itself into
+  `libtfgrammar.dylib` for structured output and tool calling (Engine above; Apache-2.0, with DLPack as xgrammar carries it).
+
+The model, its DFlash 2 draft model and the method they follow are credited under Model above: Thinking Machines'
+[Inkling 2 Mini](https://huggingface.co/thinkingmachines/Inkling-2-Mini), Inco AI's
+[Inkling-2-Mini-DFlash2](https://huggingface.co/incoai/Inkling-2-Mini-DFlash2) and z-lab's DFlash.
+
 ## Recipe
 
 - **MiaAI-Lab** (Mia's AI Lab): this repository's scripts, after its

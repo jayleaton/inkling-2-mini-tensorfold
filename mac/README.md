@@ -2,7 +2,7 @@
 
 Native Apple Silicon (Metal) recipe for serving [`thinkingmachines/Inkling-2-Mini`](https://huggingface.co/thinkingmachines/Inkling-2-Mini) (`rev 7a67ae2314b4`) with [TensorFold](https://github.com/ashhart/TensorFold)'s Zig engine, speculative drafting (`incoai/Inkling-2-Mini-DFlash2`), vision (`--vision`), and structured output / tool calling (`libtfgrammar.dylib` via xgrammar `v0.2.8`).
 
-Built alongside the upstream DGX Spark / CUDA recipe in the repository root. See [`../CREDITS.md`](../CREDITS.md), [`../LICENSE`](../LICENSE), and [`../NOTICE`](../NOTICE) for upstream credits and licensing.
+The engine is TensorFold's native Metal Inkling 2 Mini — upstream `main` at `920fe22c9` — plus two upstream PRs carried as `mac/patches/`: the Metal drafter window-fit fix ([#4622](https://github.com/ashhart/TensorFold/pull/4622), sethforprivacy) and the native Metal DFlash2 drafter ([#4917](https://github.com/ashhart/TensorFold/pull/4917), cwschroeder). None of the root recipe's CUDA engine or patches is built here; from Mia's AI Lab's recipe the Mac build takes the repository layout and the shared test tools (`tools/exact.py`, `tools/prompt_reuse.py` and the rest). Full credits are in [`../CREDITS.md`](../CREDITS.md); see [`../LICENSE`](../LICENSE) and [`../NOTICE`](../NOTICE) for licensing.
 
 ## Quick Start
 
