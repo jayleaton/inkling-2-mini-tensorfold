@@ -1,0 +1,123 @@
+diff --git a/zig/src/families/inkling2/mini_disk.zig b/zig/src/families/inkling2/mini_disk.zig
+new file mode 100644
+index 000000000..6a92a6958
+--- /dev/null
++++ b/zig/src/families/inkling2/mini_disk.zig
+@@ -0,0 +1,69 @@
++//! Inkling 2 Mini's kept states for the disk store (native/cuda_kept.zig): mini_snap's layout, a blank, its facts.
++const std = @import("std");
++const cuda = @import("cuda");
++const lanes = @import("lanes");
++const be = @import("mini_backend.zig");
++const mm = @import("mini_model.zig");
++const snap = @import("mini_snap.zig");
++const Allocator = std.mem.Allocator;
++
++pub const Target = be.Mini;
++pub const State = snap.Saved;
++pub const probe_seed: u64 = 0x696b;
++
++/// snap.each's copies as parts: a whole cache's codes (and fp8 scales) are rows from position 0, a ring's its tail.
++pub fn parts(t: *const Target, at: u32, out: anytype, a: Allocator) !void {
++    const m = t.m;
++    const rb: u64 = @as(u64, m.c.local.dim) * @as(u64, if (m.kv8) 1 else 2);
++    const scale: u64 = if (m.kv8) 4 else 0;
++    for (m.w.plan.visits.slice()) |step| {
++        const full = step.of(.full) != null;
++        if (full and at > m.full.ring) return error.PastContext;
++        for (0..2 * @as(usize, m.c.local.kv)) |_| {
++            if (full) {
++                try out.append(a, .{ .bytes = @as(u64, at) * rb, .row = @intCast(rb) });
++                if (scale > 0) try out.append(a, .{ .bytes = @as(u64, at) * scale, .row = @intCast(scale) });
++            } else try out.append(a, .{ .bytes = snap.tail(m.c.window, at) * (rb + scale) });
++        }
++        for (std.enums.values(mm.Site)) |site| {
++            const width: u64 = if (site == .k or site == .v) @as(u64, m.c.local.kv) * m.c.local.dim else m.c.hidden;
++            try out.append(a, .{ .bytes = 3 * width * 4 });
++        }
++    }
++}
++
++pub fn buffers(st: *const State) [2]?cuda.DeviceBuffer {
++    return .{ st.buf, null };
++}
++
++pub fn blank(t: *Target, at: u32) !*State {
++    const m = t.m;
++    if (at == 0 or at > m.context) return error.NotAtMark;
++    const k = try t.gpa.create(State);
++    errdefer t.gpa.destroy(k);
++    k.* = .{ .at = at, .visits = @intCast(m.w.plan.visits.len), .buf = try cuda.DeviceBuffer.alloc(m.d, @max(snap.bytes(m, at), 256)) };
++    return k;
++}
++
++/// The probe prefills without the drafter: a state holds the target's caches only (a drafter rebuilds its own).
++pub fn drafts(_: *const Target) bool {
++    return false;
++}
++
++pub fn context(t: *const Target) usize {
++    return t.m.context;
++}
++
++pub fn save(t: *Target, s: *lanes.Stream, at: u32) !*State {
++    return t.saveState(s, at);
++}
++
++pub fn drop(t: *Target, st: *State) void {
++    t.dropState(st);
++}
++
++/// The KV form past what the probe shows: fp8 or bf16 rows, the ring's span, a row's width, the plan's visits.
++pub fn facts(t: *const Target) [5]u64 {
++    const m = t.m;
++    return .{ @intFromBool(m.kv8), m.c.window, m.c.local.dim, m.c.local.kv, m.w.plan.visits.len };
++}
+diff --git a/zig/src/families/inkling2/mini_native.zig b/zig/src/families/inkling2/mini_native.zig
+index 12ea7dda6..7753b8942 100644
+--- a/zig/src/families/inkling2/mini_native.zig
++++ b/zig/src/families/inkling2/mini_native.zig
+@@ -21,6 +21,7 @@ pub const prompt_rows: u32 = be.prompt_rows;
+ /// --drafter: the checkpoint folder (its mtp.safetensors) or the .safetensors file itself.
+ pub const takes_drafter = true;
+ pub const explains_open = true;
++pub const kept_view = @import("mini_disk.zig"); // --prompt-cache-disk's states (native/cuda_kept.zig)
+ /// A kept state is the caches and conv states through its position, nothing past it (no draft head reads on).
+ pub const snap_lookahead: u32 = 0;
+ 
+diff --git a/zig/src/native/cuda_kept_test.zig b/zig/src/native/cuda_kept_test.zig
+index 72f8f4cc8..ed319035b 100644
+--- a/zig/src/native/cuda_kept_test.zig
++++ b/zig/src/native/cuda_kept_test.zig
+@@ -334,10 +334,10 @@ test "CUDA kept: core's permit takes a state at the served window whole, within
+     }
+ }
+ 
+-test "CUDA kept: Gemma 4, Dory and Spark2.5 take the store, a family without a view still refuses" {
++test "CUDA kept: Gemma 4, Dory, Spark2.5 and Inkling 2 Mini take the store, a family without a view still refuses" {
+     const gemma = @import("gemma4_cuda");
+     const dory = @import("dory");
+-    inline for (.{ gemma.native, gemma.native31, dory.native, @import("spark25").native }) |F| {
++    inline for (.{ gemma.native, gemma.native31, dory.native, @import("spark25").native, @import("inkling2").native }) |F| {
+         try t.expect(comptime disk.keptDisk(F) != null);
+     }
+     const open: api.Open = .{ .dir = "d", .model_type = "dory", .learn_conversations = true };
+diff --git a/zig/src/native/cuda_refusal.zig b/zig/src/native/cuda_refusal.zig
+index bf2d0c676..604b8accf 100644
+--- a/zig/src/native/cuda_refusal.zig
++++ b/zig/src/native/cuda_refusal.zig
+@@ -63,12 +63,12 @@ pub fn family(comptime F: type, o: api.Open) ?[]const u8 {
+     const ranked = @hasDecl(F, "Options") and @hasField(F.Options, "rank");
+     if ((o.tp != 1 or (o.given.rank and o.rank != 0)) and !ranked) return no_ranks;
+     // ahead of the drafter's and --learn-conversations' refusals (--spill-gib sets that flag), on a line of its own
+-    if (o.spill == .evicted and F != nemotron.native and @import("cuda_disk.zig").keptDisk(F) == null) return "--spill-gib keeps evicted states on disk for Nemotron, the Qwen hybrids, Flash Next, Gemma 4, Dory and Spark2.5 only on CUDA: serve this model without it";
++    if (o.spill == .evicted and F != nemotron.native and @import("cuda_disk.zig").keptDisk(F) == null) return "--spill-gib keeps evicted states on disk for Nemotron, the Qwen hybrids, Flash Next, Gemma 4, Dory, Spark2.5 and Inkling 2 Mini only on CUDA: serve this model without it";
+     if (o.drafter != null and !(@hasDecl(F, "takes_drafter") and F.takes_drafter)) {
+         if (@hasDecl(F, "drafter_refusal")) return F.drafter_refusal; // a family without an MTP head says so itself
+         return "--drafter loads a separate drafter, and this CUDA family drafts with its own MTP head: serve without --drafter";
+     }
+-    if (o.learn_conversations and F != nemotron.native and @import("cuda_disk.zig").keptDisk(F) == null) return "--learn-conversations keeps conversation states on disk for Nemotron, the Qwen hybrids, Flash Next, Gemma 4, Dory and Spark2.5 only on CUDA: serve this model without it";
++    if (o.learn_conversations and F != nemotron.native and @import("cuda_disk.zig").keptDisk(F) == null) return "--learn-conversations keeps conversation states on disk for Nemotron, the Qwen hybrids, Flash Next, Gemma 4, Dory, Spark2.5 and Inkling 2 Mini only on CUDA: serve this model without it";
+     if (o.learn_conversations and o.tp > 1) if (@import("cuda_disk.zig").keptDisk(F)) |K| if (@hasDecl(K, "one_rank") and K.one_rank) return "--learn-conversations keeps one rank's states on disk for this CUDA family: serve without --tp or without --learn-conversations";
+     if (o.kv8 and !(@hasDecl(F, "Options") and @hasField(F.Options, "kv8"))) return "--kv-cache fp8: this CUDA family keeps bf16 caches; serve without it";
+     if (o.prompt_int8 and !(@hasDecl(F, "Options") and @hasField(F.Options, "prompt_int8"))) return "--prompt-precision int8: this CUDA family's prompt matmuls take bf16 inputs; serve without it";

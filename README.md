@@ -14,7 +14,7 @@
 Serve **[Inkling 2 Mini](https://huggingface.co/thinkingmachines/Inkling-2-Mini)** on a single **NVIDIA DGX Spark** (GB10, `sm_121`, 128 GB
 unified memory) through an OpenAI-compatible API (plus a `/v1/messages` Messages-format endpoint). It runs [TensorFold](https://github.com/ashhart/TensorFold)'s Zig engine
 (`tensorfold-native`, Jürgen Schmied's Inkling 2 Mini CUDA engine at [PR #4441](https://github.com/ashhart/TensorFold/pull/4441), commit
-`dc2ca8a1`) plus `patches/0001`–`0018` in NVIDIA's PyTorch container. It has native CUDA vision (`inkling2_vision`: PNG, JPEG, WebP) and
+`dc2ca8a1`) plus `patches/0001`–`0019` in NVIDIA's PyTorch container. It has native CUDA vision (`inkling2_vision`: PNG, JPEG, WebP) and
 structured output and tool calling (`libtfgrammar.so`).
 
 - **Model:** a looped mixture of experts.
@@ -41,8 +41,10 @@ structured output and tool calling (`libtfgrammar.so`).
     ships only for vLLM. This recipe matches it on TensorFold: vLLM's `reasoning_effort` and `reasoning` output field, the SHA-256 checks, and
     the readiness gate.
 - **Default serving config:**
-  - **262,144** tokens a stream (the model's limit is 1,048,576) and **8** concurrent streams.
+  - **131,072** tokens a stream (the model's limit is 1,048,576) and **2** concurrent streams.
   - `fp8` KV cache, the DFlash2 drafter (`DRAFTS=1`, `DRAFTER=dflash2`) and native CUDA vision (`VISION=1`).
+  - Prompt and conversation states kept in RAM and on the NVMe (`PROMPT_CACHE_DISK=1`, `--prompt-cache-disk`, patch `0019`): a later turn,
+    or the same prompt after a restart, resumes from its state instead of being prefilled again.
   - Structured output and `tool_choice`.
   - FP8 attention projections (`TF_INKLING2_ATTN_FP8=1`) and Blackwell native FP4/MXFP8 prefill tensor cores (`TF_INKLING2_PREFILL_TC=1`).
 - **One command:** `./start.sh` downloads the weights, builds the `sm_121` image on the first run and starts the server; `./stop.sh` stops it.
@@ -169,7 +171,7 @@ curl -s http://<spark-address>:8888/v1/chat/completions -H 'Content-Type: applic
 ```bash
 ./start.sh restart                  # restart (validates args before stopping)
 RERISKED=1 ./start.sh restart       # serve the local Inkling-2-Mini-Derisked folder
-PARALLEL=4 ./start.sh restart       # fewer streams, more prompt cache
+PARALLEL=4 ./start.sh restart       # more streams, less prompt cache
 ./stop.sh                           # stop the container
 docker logs -f inkling2-mini-tf     # follow server logs
 curl -s http://<spark-address>:8888/health
@@ -179,23 +181,54 @@ curl -s http://<spark-address>:8888/health
 - `DRY_RUN=1 ./start.sh` prints the `docker run` command without changing anything.
 - Extra arguments pass straight to `tensorfold-native serve` (`./start.sh restart --context 131072`).
 
+## Engine base: this recipe against TensorFold main
+
+TensorFold main now serves Inkling 2 Mini too (#4387, a clean-room engine, CUDA at one rank and Metal). This recipe stays on Jürgen
+Schmied's engine (PR #4441, `dc2ca8a1`, closed unmerged) with `0001`–`0019`. Main's CUDA path, read at `920fe22c` (2026-11-26), lacks
+three of the defaults:
+
+| Default | This recipe | main on CUDA (`zig/src/families/inkling2/cuda_native.zig`) |
+| --- | --- | --- |
+| Drafter | DFlash2 (`0018`) or DSpark (`0002`) | refused: `Inkling2DSparkPending`, no native draft engine (DSpark drafts on Metal only) |
+| Vision | `inkling2_vision` (`0016`) | refused: `Inkling2LoopTextOnly`, text only |
+| fp8 KV | `--kv-cache fp8` (`0003`) | no `kv8` option: bf16 caches only |
+| States on disk | `--prompt-cache-disk` (`0019`) | no kept view: `--prompt-cache-disk` refused |
+| FP8 attention, tensor-core prefill | `0012`, `0015` | absent |
+
+Mia's patches do not port onto main cheaply: 17 of the 18 edit Jürgen's `mini_*.zig` files, which main replaced with `loop_*.zig`. The
+compute lanes below live in TensorFold's shared lane host and HTTP server, which `dc2ca8a1` shares with main up to their 2026-11-21 fork
+point. The decode and prefill A/B between the two engines (2 × 131,072 tokens, the same checkpoint, each with its best drafter) is
+**not measured yet**.
+
 ## KV cache & memory budget
 
-On a 128 GB DGX Spark with the defaults (`CONTEXT=262144`, `PARALLEL=8`, `KV_DTYPE=fp8`, `DRAFTS=1`, `VISION=1`,
-`TENSORFOLD_MEMORY_RESERVE_GIB=9`):
+On a 128 GB DGX Spark with the defaults (`CONTEXT=131072`, `PARALLEL=2`, `KV_DTYPE=fp8`, `DRAFTS=1`, `VISION=1`,
+`PROMPT_CACHE_DISK=1`, `TENSORFOLD_MEMORY_RESERVE_GIB=9`). These figures are worked from the engine's own logs under the previous
+8 × 262,144 defaults; the 2 × 131,072 run replaces them once it is measured.
 
-- **Weights:** ~19.9 GiB (`17.60 GiB` target + `1.67 GiB` DFlash2 + `0.59 GiB` vision), plus scratch. DFlash2's share holds its layers as
-  FP8 copies, the target head as an NVFP4 copy, the selector's codebooks and its scratch.
-- **Active KV slots:** **36.7 GiB** (`4.59 GiB` a stream × 8 streams = **2,097,152 active tokens**). That's the `fp8` target KV plus DFlash2's
-  fixed 40 MiB ring a stream: 5 layers' bf16 K/V over its 2,048-position window.
-- **Prompt cache pool:** whatever is left after a `9.0 GiB` reserve. That's **18.5 GiB** on an otherwise idle Spark, less when other
-  containers share the memory.
-- **Engine total:** ~59.8 GiB (`model 59.83 GiB` in the log) plus the prompt cache.
-- **`DRAFTER=dspark`:** `1.54 GiB` of drafter weights and `5.56 GiB` a stream, because DSpark's global layer keeps a bf16 K/V row for every
-  position in the window. That leaves a 16.0 GiB prompt cache.
+- **Weights and scratch:** ~23.1 GiB: `17.60 GiB` target + `1.67 GiB` DFlash2 + `0.59 GiB` vision, plus scratch. That is the logged
+  `model 59.83 GiB` less its 36.7 GiB of streams.
+- **One stream:** **2.53 GiB**.
+  - The 8 whole-context visits' fp8 K and V: 8 × 2 × (1,024 + 8 scales × 4) = 16,896 bytes a token, so 2.06 GiB for 131,072 tokens.
+  - Plus 0.47 GiB a stream that does not grow with the window: the 40 sliding visits' 1,536-row rings, the 48 visits' conv states and
+    DFlash2's 40 MiB ring. That is the logged `4.59 GiB` a stream at 262,144 tokens less its 4.13 GiB of whole-context K/V.
+- **Active KV slots:** 2 × 2.53 = **5.1 GiB** (262,144 active tokens), down from 36.7 GiB for 8 × 262,144.
+- **Engine total before the prompt cache:** ~28.2 GiB.
+- **Prompt cache in RAM:** on the Spark's unified memory the engine gives it half the room left after the reserve, the weights and the
+  streams. The old defaults logged an 18.5 GiB cache, which puts that room at ~37 GiB with 36.7 GiB of streams. With 31.6 GiB fewer
+  stream bytes the room is ~68.6 GiB, and the cache **~34 GiB**. Peak engine memory is then ~62 GiB, the rest of the Spark is left free,
+  and `start.sh` checks for `mem_need_gib` = 46 GiB of `MemAvailable` before it starts.
+- **Prompt cache on disk:** with `PROMPT_CACHE_DISK=1` the states the RAM cache evicts, and each conversation's latest state, go to
+  `SESSION_DIR` (default `$HOME/.cache/tensorfold-inkling2/sessions`, mounted at `/sessions`). Keep it on the NVMe. The store's key binds
+  the checkpoint, the drafter, the tokenizer and template files, the KV form (fp8 or bf16, ring span, row width, visits) and a probe
+  prefill's state, so a state written under other settings is never restored. A state costs its cache's bytes: 16,896 a token of fp8 K/V
+  (2.06 GiB for a full 131,072-token window), plus its sliding rings' tails and conv states.
+- **`DRAFTER=dspark`:** 1.54 GiB of drafter weights and 4,096 more bytes a token a stream: DSpark's global layer keeps a bf16 K/V row
+  for every position in the window.
 
-Every stream reserves its full `CONTEXT` window at startup. For exact serving:
-- `KV_DTYPE=bf16` (with, say, `PARALLEL=4`) for bf16 KV caches;
+Every stream reserves its full `CONTEXT` window at startup. More streams (`PARALLEL=4`, 10.1 GiB of slots) or longer windows
+(`CONTEXT=262144`, 4.59 GiB a stream) trade prompt cache for them. For exact serving:
+- `KV_DTYPE=bf16` for bf16 KV caches (32,768 bytes a token: 4.47 GiB a stream at 131,072);
 - `TF_INKLING2_ATTN_FP8=0` for bf16 attention projections;
 - `TF_INKLING2_PREFILL_TC=0` for bf16 prefill experts.
 
@@ -208,8 +241,10 @@ All defaults live in [`scripts/config.sh`](scripts/config.sh). Override them fro
 | --- | --- | --- |
 | `RERISKED` | `0` | `0`: upstream `Inkling-2-Mini` (auto-fetched); `1`: local `Inkling-2-Mini-Derisked` |
 | `MODEL_DIR` | `$HOME/models/hf/Inkling-2-Mini` | checkpoint folder, mounted read-only at `/models/ink` |
-| `PARALLEL` | `8` | concurrent request slots (each gets a full `CONTEXT` window) |
-| `CONTEXT` | `262144` | prompt + reply window a stream (up to `1048576`) |
+| `PARALLEL` | `2` | concurrent request slots (each gets a full `CONTEXT` window) |
+| `CONTEXT` | `131072` | prompt + reply window a stream (up to `1048576`) |
+| `PROMPT_CACHE_DISK` | `1` | `1`: keep prompt and conversation states on disk too (`--prompt-cache-disk /sessions`); `0`: RAM only |
+| `SESSION_DIR` | `$HOME/.cache/tensorfold-inkling2/sessions` | the disk states' folder (put it on the NVMe), mounted at `/sessions` |
 | `KV_DTYPE` | `fp8` | target KV cache: `fp8` or `bf16` (exact) |
 | `DRAFTS` | `1` | `1`: draft with `DRAFTER`; `0`: `--no-drafts` |
 | `DRAFTER` | `dflash2` | `dflash2`: the DFlash2 draft model (`--drafter /models/draft`); `dspark`: the checkpoint's DSpark head (`--drafter /models/ink`) |
@@ -242,7 +277,7 @@ All defaults live in [`scripts/config.sh`](scripts/config.sh). Override them fro
 - **Exact serial reference:** `"draft": false` on any request turns drafting off. Drafted replies match `"draft": false` token for token.
 - **Admission:** when all `PARALLEL` slots are full, new requests are rejected rather than queued.
 
-## Patches (`patches/0001`–`0018`)
+## Patches (`patches/0001`–`0019`)
 
 Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 
@@ -257,6 +292,7 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 | `0016` | Native CUDA vision encoder (`inkling2_vision`): `Inkling2ImageProcessor` (PNG/JPEG/WebP, EXIF orientation, 8×8 checkerboard alpha, `-1.0` padding to 40×40 tiles), the 23-layer ViT with 2D pairwise axial RoPE, LayerScale and bilinear position embeddings, `vision_kernel<64, 8>` tensor-core attention, the 2×2 spatial merge and GELU projector, and image embeddings spliced into the prompt (`--vision`) |
 | `0017` | Server fixes: the reply grammar is freed when a stream fails to start (`lane_stream.zig`); opt-in `TF_TOOL_CALL_GUARD=1` and rejected tool-envelope logs (`TF_TOOL_CALL_DEBUG=1`); `--vision-max-images` up to 100; `--dashboard-open` |
 | `0018` | DFlash2 drafter (`mini_dflash.zig`, `inkling2/dflash.cu`): `--drafter` on a DFlash2 folder loads it in place of DSpark. Committed taps go through `fc` and the hidden norm into 5 layers' 2,048-position K/V rings; one pass embeds the pending token and 7 masks and runs the two-tap dynamic convs, non-causal block attention and SwiGLU (layers as FP8 copies); an NVFP4 copy of the target head gives each row's top 16, and a GPU candidate selector walks the path (keyed draws for sampled requests). A stream alone gives the round planner each draft's chance, the selector's probability calibrated by what landed. After TensorFold's GLM-5.3-Flash CUDA DFlash2 and [tonyd2wild](https://github.com/tonyd2wild)'s [Inkling DFlash2 patch](https://github.com/tonyd2wild/Inkling-2-Mini-NVFP4-DGX-Spark) |
+| `0019` | Prompt and conversation states on disk (`--prompt-cache-disk`, CUDA): `mini_disk.zig` describes `mini_snap`'s states to TensorFold's kept-state disk store (`native/cuda_kept.zig`): whole caches as rows from position 0, sliding rings as their tails, conv states, a blank state to read into, and the KV form the store's key binds |
 
 ## Tools
 
@@ -276,7 +312,7 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 start.sh      set up (first run) and start the server
 stop.sh       stop it
 scripts/      config.sh, prepare.sh, fetch.sh, banner.sh
-patches/      0001–0018 applied onto TensorFold at TF_REF
+patches/      0001–0019 applied onto TensorFold at TF_REF
 tools/        verification scripts
 CREDITS.md    upstream credits
 NOTICE        third-party notices

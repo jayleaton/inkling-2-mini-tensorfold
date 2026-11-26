@@ -70,10 +70,15 @@ CONTAINER_NAME="${CONTAINER_NAME:-inkling2-mini-tf}"
 SERVED_NAME="${SERVED_NAME:-$MODEL_LABEL}"
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8888}"
-CONTEXT="${CONTEXT:-262144}"
-# 8 full windows at fp8 KV for both checkpoints. (The Derisked kit's vLLM command leaves its KV cache at "auto", bf16:
-# KV_DTYPE=bf16 PARALLEL=4 serves that; fp8 is this deployment's choice.)
-PARALLEL="${PARALLEL:-8}"
+CONTEXT="${CONTEXT:-131072}"
+# 2 windows of 131,072 tokens at fp8 KV: the memory the other 6 streams of a 8 x 262,144 layout held goes to the prompt
+# cache (half the room left after the weights and the streams on the Spark's unified memory). (The Derisked kit's vLLM
+# command leaves its KV cache at "auto", bf16: KV_DTYPE=bf16 PARALLEL=4 serves that; fp8 is this deployment's choice.)
+PARALLEL="${PARALLEL:-2}"
+# PROMPT_CACHE_DISK=1 keeps conversation states on disk too (--prompt-cache-disk, patch 0019): a later turn or a restart
+# resumes a prompt from SESSION_DIR (mounted at /sessions) instead of prefilling it again. Put SESSION_DIR on the NVMe.
+PROMPT_CACHE_DISK="${PROMPT_CACHE_DISK:-1}"
+SESSION_DIR="${SESSION_DIR:-$HOME/.cache/tensorfold-inkling2/sessions}"
 MAX_TOKENS="${MAX_TOKENS:-32768}"
 # DRAFTS=1 drafts with DRAFTER; 0 passes --no-drafts.
 DRAFTS="${DRAFTS:-1}"

@@ -6,7 +6,7 @@
 # Stop it with ./stop.sh.
 #
 # Usage: ./start.sh [restart] [extra tensorfold-native serve args]
-#   ./start.sh                         # up to 8 requests at once, a 262,144-token window, DFlash2 drafts
+#   ./start.sh                         # 2 requests at once, a 131,072-token window, DFlash2 drafts, states on disk
 #   ./start.sh restart                 # stop, then start again; the new arguments are checked before stopping
 #   ./start.sh restart --parallel 2 --context 131072
 #   CONTEXT=131072 ./start.sh restart  # a shorter window leaves memory for more streams or the prompt cache
@@ -16,9 +16,9 @@
 #   DRY_RUN=1 ./start.sh               # print the docker command and exit
 # Extra arguments go to tensorfold-native serve after the defaults, so they win.
 # Settings, from the environment or ./.env (scripts/config.sh):
-#   serving  CONTEXT, PARALLEL, MAX_TOKENS, THINKING, REASONING_EFFORT, DRAFTS, DRAFTER, VISION, VISION_URLS,
+#   serving  CONTEXT, PARALLEL, MAX_TOKENS, THINKING, REASONING_EFFORT, DRAFTS, DRAFTER, VISION, VISION_URLS, PROMPT_CACHE_DISK,
 #            VISION_MAX_IMAGES, VISION_IMAGE_TOKENS, TEMPERATURE, TOP_P, TOP_K, SERVED_NAME, HOST, PORT
-#   files    MODEL_DIR, DRAFTER_DIR, KERNEL_CACHE, STATE_DIR
+#   files    MODEL_DIR, DRAFTER_DIR, KERNEL_CACHE, STATE_DIR, SESSION_DIR
 #   image    IMAGE, TF_REPO, TF_REF, ZIG_VERSION, BASE_IMAGE, NATIVE_FP_DECODE, CONTAINER_NAME
 #   setup    PREPARE (auto | 1 | 0), FOREGROUND=1, WAIT_TIMEOUT, DRY_RUN=1, MEM_NEED_GIB, MEM_CHECK=0
 #   engine   every TENSORFOLD_*, TF_INKLING2_*, TF_NVFP4_*, TF_REASONING_*, TF_TOOL_CALL_* and TF_KPROF* variable goes into the
@@ -39,7 +39,7 @@ for arg in "$@"; do [[ "$arg" == -h || "$arg" == --help ]] && { usage; exit 0; }
 [[ "$CONTEXT" =~ ^[1-9][0-9]*$ && "$CONTEXT" -le 1048576 ]] || die "CONTEXT is a token count up to 1048576 (the model's window), not $CONTEXT"
 [[ "$PARALLEL" =~ ^([1-9]|1[0-6])$ ]] || die "PARALLEL is 1 to 16, not $PARALLEL"
 [[ "$MAX_TOKENS" =~ ^[1-9][0-9]*$ ]] || die "MAX_TOKENS is a token count, not $MAX_TOKENS"
-for v in THINKING DRAFTS VISION VISION_URLS; do [[ "${!v}" =~ ^[01]$ ]] || die "$v is 0 or 1, not ${!v}"; done
+for v in THINKING DRAFTS VISION VISION_URLS PROMPT_CACHE_DISK; do [[ "${!v}" =~ ^[01]$ ]] || die "$v is 0 or 1, not ${!v}"; done
 [[ -z "$REASONING_EFFORT" || "$REASONING_EFFORT" =~ ^(none|minimal|low|medium|high|xhigh|max|0(\.[0-9]+)?)$ ]] ||
   die "REASONING_EFFORT is none, minimal, low, medium, high, xhigh, max or a number in [0, 0.99], not $REASONING_EFFORT"
 DRY=0; [[ "${DRY_RUN:-0}" == 1 ]] && DRY=1
@@ -59,6 +59,7 @@ if [[ "$VISION" == 1 ]]; then
 fi
 [[ "$KV_DTYPE" =~ ^(bf16|fp8)$ ]] || die "KV_DTYPE is bf16 or fp8, not $KV_DTYPE"
 [[ "$KV_DTYPE" == bf16 ]] || SERVE_ARGS+=(--kv-cache "$KV_DTYPE")
+[[ "$PROMPT_CACHE_DISK" == 1 ]] && SERVE_ARGS+=(--prompt-cache-disk /sessions)
 USER_ARGS=("$@")
 arg_value() {
   local flag=$1 value="" i
@@ -94,6 +95,7 @@ step() { printf '%s[%s/%s]%s %s%s%s\n' "$M" "$1" "$STEPS" "$R" "$B" "$2" "$R"; }
 
 command -v docker >/dev/null || die "docker is not installed"
 mkdir -p "$KERNEL_CACHE" "$STATE_DIR"
+[[ "$PROMPT_CACHE_DISK" == 1 ]] && mkdir -p "$SESSION_DIR"
 exec 8>"$STATE_DIR/start.lock"
 flock -n 8 || die "another ./start.sh is already running; wait for it to finish"
 (( DRY )) && log "DRY_RUN=1: printing the docker command; nothing is stopped or started"
@@ -171,6 +173,7 @@ else
   if (( DRY )) || [[ "${MEM_CHECK:-1}" == 0 ]]; then warn "$msg"; else die "$msg (MEM_CHECK=0 starts anyway)"; fi
 fi
 
+SESSION_MOUNT=(); [[ "$PROMPT_CACHE_DISK" == 1 ]] && SESSION_MOUNT=(-v "$SESSION_DIR":/sessions)
 ENV_ARGS=()
 while IFS='=' read -r name _; do
   [[ "$name" == TENSORFOLD_API_KEY ]] && continue
@@ -187,6 +190,7 @@ here_cmd=(docker run -d --name "$CONTAINER_NAME"
           -v "$MODEL_DIR":"$MODEL_MOUNT":ro
           ${DRAFT_MOUNT[@]+"${DRAFT_MOUNT[@]}"}
           -v "$KERNEL_CACHE/$KCACHE":/cache
+          ${SESSION_MOUNT[@]+"${SESSION_MOUNT[@]}"}
           "$IMAGE"
           tensorfold-native serve "$MODEL_MOUNT" --name "$SERVED_NAME" --host "$HOST" --port "$PORT"
           "${SERVE_ARGS[@]}" ${USER_ARGS[@]+"${USER_ARGS[@]}"})
@@ -270,6 +274,7 @@ cat <<EOF
     Loaded   in ${LOADED_S}s · ${avail_gb} GiB was free
     Model    $MODEL_DIR ($QUANT_LABEL)
     Window   $(arg_value --context) tokens · $(arg_value --parallel) at once · $KV_DTYPE KV · drafts $(drafts_label)
+    States   $( [[ "$PROMPT_CACHE_DISK" == 1 ]] && echo "RAM and $SESSION_DIR" || echo "RAM only" )
     Logs     docker logs -f $CONTAINER_NAME
     Restart  ./start.sh restart
     Stop     ./stop.sh
