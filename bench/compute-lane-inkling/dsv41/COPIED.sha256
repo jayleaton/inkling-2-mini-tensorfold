@@ -1,0 +1,25 @@
+# sha256  path-under-dsv41  source-in-the-DSv4.1-public-export (bench/compute-lane/...). Byte-identical copies;
+# kit/sources/humaneval.jsonl.gz is not in the export: fetched from datasets.lock.json's pinned URL, lock sha256 verified.
+d0ed18b942e1c85b963a92ed3aff52218cf48afd2239654c92487005b240841e  spec/T5-STDBENCH-SPEC.md  stdbench-kit/phase2/T5-STDBENCH-SPEC.md
+6056c87694f583ac3e9eb3ac28a86e6fdb6affe9753d9bf10806c15fb7fa6757  kit/bench.py  stdbench-kit/bench.py
+376b5c541521566a140bdfcc73448c69bccb383ca534a53c0f7eb841dc4f8131  kit/datasets.lock.json  stdbench-kit/datasets.lock.json
+3730d312f6e3440559ace48831e51066acaca737f6eabec99bccb9e4b3c39d14  kit/sources/gsm8k.jsonl  stdbench-kit/sources/gsm8k.jsonl
+35dc41080a3680858b27fa7e0533d2d547825316fc5dafe5d316f4ccc5a06132  kit/sources/math500.jsonl  stdbench-kit/sources/math500.jsonl
+b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef  kit/sources/humaneval.jsonl.gz  https://raw.githubusercontent.com/openai/human-eval/b9453e8f1865df0a0057a1383767caa400acfbcf/data/HumanEval.jsonl.gz
+87871688d4aea10d0c8f2f8c7bd2d9ee1f4a759bbbe5e57bb8403127542780df  phase2/analysis.py  stdbench-kit/phase2/analysis.py
+dcc8ef766247a1b02c993c9a50186b70b68c4fb5b6493e1bb42b3f7727186d36  phase2/grade_all.py  stdbench-kit/phase2/grade_all.py
+d84d4d6b07fa321e462b9e13949c7b85c32b7b555ce5e0ce1047d5f04fb7aa13  phase2/math_review.py  stdbench-kit/phase2/math_review.py
+499cf0001c3259f9fbe040c32df5663681066a56ab58f07df0b13779623da67b  phase2/jail.py  stdbench-kit/phase2/jail.py
+703ee5a019b4b3a454f35c5dd914a5a01990095a47ad43aef54d2695fc0a61a8  phase2/jail_worker.py  stdbench-kit/phase2/jail_worker.py
+b43ce05d94977aec22901b2672674ad802e2550a408fc038107e506f33db1776  phase2/jail.md  stdbench-kit/phase2/jail.md
+cc0c5f82208c965922be564f61809b8ef1da8f98244492d2c9861eeaabcee99c  phase2/client.py  stdbench-kit/phase2/client.py
+1a2249a1b5e0b06f03a4300995d0c320e5a21630d261b3791501f7c83740fb9f  compute-dl/grade.py  compute-dl/grade.py
+71101f372473fc5be4a7f9896fb5b3e8ef375620c1dca87f48bb8559ddb292ae  compute-dl/analysis.py  compute-dl/analysis.py
+bcbcf081af839c78dac93c676308b8e5ab5b3518d2859b91719c6993bcc77e8c  compute-dl/TASKSET.md  compute-dl/TASKSET.md
+673c3ae4315b403beb6a3d3f795327a1b9f498384fef26fe4fbaac6f567dce09  compute-dl/spec/T5-COMPUTE-DL-SPEC.md  compute-dl/spec/T5-COMPUTE-DL-SPEC.md
+0dca1fa52838388ea1e7afbc3a4c5e9747775f64e871640df7a66496369e5453  compute-dl/spec/T5-COMPUTE-DL-SPEC-A1.md  compute-dl/spec/T5-COMPUTE-DL-SPEC-A1.md
+5f0ea16adec37ca77f87ab3c76034ab8cc8655a1ccccfb557a020e7585b817aa  compute-dl/spec/T5-COMPUTE-DL-SPEC-A2.md  compute-dl/spec/T5-COMPUTE-DL-SPEC-A2.md
+3e1e07d7a573eb194c0568afac2ef2112011b2b2cada9012fbbce4e6f47f7548  compute-dl/dataset-v1/tasks-public.jsonl  compute-dl/dataset-v1/tasks-public.jsonl
+518eeccaf5f3829781bd65619f31479d40a009eff2d41ccf5a73d7485f954542  compute-dl/dataset-v1/answers-a.json  compute-dl/dataset-v1/answers-a.json
+1610f696c8517884cc27cead98b37b0afa8f4c17739c42338fc105f549c28b49  published/decl-control-RESULTS.md  decl-control/RESULTS.md
+bcf684ff98c20eb689dfa416f693d6e679ad8f44b6b7c5e90c6f8e16a8fb676d  published/compute-dl-a2-RESULTS.md  compute-dl/a2-results-v1/RESULTS.md

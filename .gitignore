@@ -18,3 +18,5 @@ __pycache__/
 *.md
 !README.md
 !CREDITS.md
+# benchmark evidence keeps its specs, protocols and results
+!bench/**/*.md
