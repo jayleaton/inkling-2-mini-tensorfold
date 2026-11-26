@@ -1,0 +1,2727 @@
+diff --git a/zig/kernels/metal/inkling2/dflash2.metal b/zig/kernels/metal/inkling2/dflash2.metal
+new file mode 100644
+index 000000000..f01b077d1
+--- /dev/null
++++ b/zig/kernels/metal/inkling2/dflash2.metal
+@@ -0,0 +1,486 @@
++// Inkling 2 Mini DFlash 2 drafter kernels (incoai/Inkling-2-Mini-DFlash2, Qwen3 + dynamic conv + selector).
++#include <metal_stdlib>
++using namespace metal;
++#pragma METAL fp contract(off)
++
++constant uint DF2_QH = 32;
++constant uint DF2_KVH = 8;
++constant uint DF2_G = 4;
++constant uint DF2_D = 128;
++constant uint DF2_CHUNK = 128;
++constant uint DF2_PART = 132;
++constant uint DF2_MAX_K = 16;
++constant uint DF2_TOPK_THREADS = 512;
++constant uint DF2_TOPK_SIMDS = 16;
++constant uint DF2_TOPK_PICKS = 64;
++
++struct Df2EmbedArgs { uint rows, width, use_norm; float eps; };
++struct Df2NormArgs { uint rows, width; float eps; uint add; };
++struct Df2ConvArgs { uint rows, width, block, groups, side; };
++struct Df2CtxArgs { uint rows, pos0, ring; float eps, theta; };
++struct Df2BlockQkvArgs { uint rows, block, pos0; float eps, theta; };
++struct Df2AttendArgs { uint rows, anchor, from, lo, retained, keys, window, ring, chunks; float scale; };
++struct Df2ActArgs { uint count; };
++struct Df2TopkArgs { uint rows, vocab, k, stride; };
++struct Df2WalkArgs { uint slots, rank, top, vocab; float softcap; };
++
++// Embed block token IDs into FP32 residual rows, optionally applying target embed_norm.
++[[kernel, max_total_threads_per_threadgroup(256)]] void tf_ink2_df2_embed(
++    const device uint* ids [[buffer(0)]], const device bfloat* table [[buffer(1)]],
++    const device bfloat* weight [[buffer(2)]], constant Df2EmbedArgs& a [[buffer(3)]],
++    device float* out [[buffer(4)]], uint row [[threadgroup_position_in_grid]],
++    uint t [[thread_position_in_threadgroup]], uint lane [[thread_index_in_simdgroup]],
++    uint sg [[simdgroup_index_in_threadgroup]]) {
++  if (row >= a.rows) return;
++  const device bfloat* src = table + (size_t)ids[row] * a.width;
++  device float* dst = out + (size_t)row * a.width;
++  if (!a.use_norm) {
++    for (uint i = t; i < a.width; i += 256) dst[i] = float(src[i]);
++    return;
++  }
++  threadgroup float part[8];
++  float sum = 0.0f;
++  for (uint i = t; i < a.width; i += 256) {
++    const float v = float(src[i]);
++    sum = fma(v, v, sum);
++  }
++  const float sg_sum = simd_sum(sum);
++  if (lane == 0) part[sg] = sg_sum;
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  float total = 0.0f;
++  for (uint s = 0; s < 8; ++s) total += part[s];
++  const float inv = precise::rsqrt(total / float(a.width) + a.eps);
++  for (uint i = t; i < a.width; i += 256) dst[i] = float(bfloat(float(src[i]) * inv * float(weight[i])));
++}
++
++// Qwen3 RMSNorm over FP32 residual rows, with optional BF16-rounded residual addition into R.
++[[kernel, max_total_threads_per_threadgroup(256)]] void tf_ink2_df2_norm(
++    device float* R [[buffer(0)]], const device bfloat* X [[buffer(1)]],
++    const device bfloat* w [[buffer(2)]], constant Df2NormArgs& a [[buffer(3)]],
++    device bfloat* out [[buffer(4)]], uint row [[threadgroup_position_in_grid]],
++    uint t [[thread_position_in_threadgroup]], uint lane [[thread_index_in_simdgroup]],
++    uint sg [[simdgroup_index_in_threadgroup]]) {
++  if (row >= a.rows) return;
++  threadgroup float part[8];
++  device float* r = R + (size_t)row * a.width;
++  const device bfloat* x = X + (size_t)row * a.width;
++  float sum = 0.0f;
++  for (uint i = t; i < a.width; i += 256) {
++    float v = r[i];
++    if (a.add) {
++      v = float(bfloat(v + float(x[i])));
++      r[i] = v;
++    }
++    sum = fma(v, v, sum);
++  }
++  const float sg_sum = simd_sum(sum);
++  if (lane == 0) part[sg] = sg_sum;
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  float total = 0.0f;
++  for (uint s = 0; s < 8; ++s) total += part[s];
++  const float inv = precise::rsqrt(total / float(a.width) + a.eps);
++  device bfloat* y = out + (size_t)row * a.width;
++  for (uint i = t; i < a.width; i += 256) y[i] = bfloat(float(w[i]) * float(bfloat(r[i] * inv)));
++}
++
++// Qwen3 RMSNorm over BF16 rows (fc output into hidden_norm).
++[[kernel, max_total_threads_per_threadgroup(256)]] void tf_ink2_df2_norm16(
++    const device bfloat* X [[buffer(0)]], const device bfloat* w [[buffer(1)]],
++    constant Df2NormArgs& a [[buffer(2)]], device bfloat* out [[buffer(3)]],
++    uint row [[threadgroup_position_in_grid]], uint t [[thread_position_in_threadgroup]],
++    uint lane [[thread_index_in_simdgroup]], uint sg [[simdgroup_index_in_threadgroup]]) {
++  if (row >= a.rows) return;
++  threadgroup float part[8];
++  const device bfloat* x = X + (size_t)row * a.width;
++  float sum = 0.0f;
++  for (uint i = t; i < a.width; i += 256) {
++    const float v = float(x[i]);
++    sum = fma(v, v, sum);
++  }
++  const float sg_sum = simd_sum(sum);
++  if (lane == 0) part[sg] = sg_sum;
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  float total = 0.0f;
++  for (uint s = 0; s < 8; ++s) total += part[s];
++  const float inv = precise::rsqrt(total / float(a.width) + a.eps);
++  device bfloat* y = out + (size_t)row * a.width;
++  for (uint i = t; i < a.width; i += 256) y[i] = bfloat(float(w[i]) * float(bfloat(float(x[i]) * inv)));
++}
++
++// Two-tap grouped dynamic block convolution: side 0 prepare, side 1 finish.
++[[kernel, max_total_threads_per_threadgroup(256)]] void tf_ink2_df2_conv(
++    const device bfloat* X [[buffer(0)]], const device bfloat* D [[buffer(1)]],
++    const device bfloat* base [[buffer(2)]], constant Df2ConvArgs& a [[buffer(3)]],
++    device bfloat* Y [[buffer(4)]], uint2 p [[thread_position_in_grid]]) {
++  if (p.x >= a.width || p.y >= a.rows) return;
++  const uint ch = p.x, r = p.y;
++  const uint g = ch / (a.width / a.groups);
++  const device bfloat* d = D + (size_t)r * 4 * a.groups + a.side * 2 * a.groups;
++  const float c0 = float(bfloat(float(base[(a.side * 2) * a.width + ch]) + float(d[g])));
++  const float c1 = float(bfloat(float(base[(a.side * 2 + 1) * a.width + ch]) + float(d[a.groups + g])));
++  float y = float(bfloat(c0 * float(X[(size_t)r * a.width + ch])));
++  if (r % a.block >= 1) y = float(bfloat(y + float(bfloat(c1 * float(X[(size_t)(r - 1) * a.width + ch])))));
++  Y[(size_t)r * a.width + ch] = bfloat(y);
++}
++
++inline void df2_head_norm_rope(const device bfloat* src, const device bfloat* w, uint pos, float eps, float theta,
++                               device bfloat* dst, threadgroup float* nrm, uint lane) {
++  float v[4];
++  float sum = 0.0f;
++  for (uint j = 0; j < 4; ++j) {
++    v[j] = float(src[lane + 32 * j]);
++    sum = fma(v[j], v[j], sum);
++  }
++  const float inv = precise::rsqrt(simd_sum(sum) / 128.0f + eps);
++  for (uint j = 0; j < 4; ++j) nrm[lane + 32 * j] = float(bfloat(float(w[lane + 32 * j]) * float(bfloat(v[j] * inv))));
++  simdgroup_barrier(mem_flags::mem_threadgroup);
++  for (uint j = 0; j < 4; ++j) {
++    const uint d = lane + 32 * j;
++    const uint i = d % 64;
++    const float angle = float(pos) * (1.0f / precise::pow(theta, float(2 * i) / 128.0f));
++    const float c = float(bfloat(precise::cos(angle)));
++    const float s = float(bfloat(precise::sin(angle)));
++    const float rot = d < 64 ? -nrm[d + 64] : nrm[d - 64];
++    dst[d] = bfloat(float(bfloat(nrm[d] * c)) + float(bfloat(rot * s)));
++  }
++}
++
++// Normalize and rotate context keys into the layer's ring and copy context values.
++[[kernel, max_total_threads_per_threadgroup(32)]] void tf_ink2_df2_ctx_kv(
++    const device bfloat* K_raw [[buffer(0)]], const device bfloat* V_raw [[buffer(1)]],
++    const device bfloat* kw [[buffer(2)]], constant Df2CtxArgs& a [[buffer(3)]],
++    device bfloat* K_ring [[buffer(4)]], device bfloat* V_ring [[buffer(5)]],
++    uint2 tg [[threadgroup_position_in_grid]], uint lane [[thread_index_in_simdgroup]]) {
++  threadgroup float nrm[128];
++  const uint head = tg.x, row = tg.y;
++  if (head >= DF2_KVH || row >= a.rows) return;
++  const uint pos = a.pos0 + row;
++  const size_t slot = pos % a.ring;
++  const device bfloat* ks = K_raw + ((size_t)row * DF2_KVH + head) * DF2_D;
++  device bfloat* kd = K_ring + (slot * DF2_KVH + head) * DF2_D;
++  df2_head_norm_rope(ks, kw, pos, a.eps, a.theta, kd, nrm, lane);
++  const device bfloat* vs = V_raw + ((size_t)row * DF2_KVH + head) * DF2_D;
++  device bfloat* vd = V_ring + (slot * DF2_KVH + head) * DF2_D;
++  for (uint j = 0; j < 4; ++j) vd[lane + 32 * j] = vs[lane + 32 * j];
++}
++
++// Normalize and rotate block Q (32 heads) and K (8 heads), copying block V (8 heads).
++[[kernel, max_total_threads_per_threadgroup(32)]] void tf_ink2_df2_block_qkv(
++    const device bfloat* Q_raw [[buffer(0)]], const device bfloat* K_raw [[buffer(1)]],
++    const device bfloat* V_raw [[buffer(2)]], const device bfloat* qw [[buffer(3)]],
++    const device bfloat* kw [[buffer(4)]], constant Df2BlockQkvArgs& a [[buffer(5)]],
++    device bfloat* Q [[buffer(6)]], device bfloat* KB [[buffer(7)]], device bfloat* VB [[buffer(8)]],
++    uint2 tg [[threadgroup_position_in_grid]], uint lane [[thread_index_in_simdgroup]]) {
++  threadgroup float nrm[128];
++  const uint unit = tg.x, row = tg.y;
++  if (unit >= DF2_QH + DF2_KVH || row >= a.rows) return;
++  const uint pos = a.pos0 + (row % a.block);
++  if (unit < DF2_QH) {
++    const size_t off = ((size_t)row * DF2_QH + unit) * DF2_D;
++    df2_head_norm_rope(Q_raw + off, qw, pos, a.eps, a.theta, Q + off, nrm, lane);
++    return;
++  }
++  const uint head = unit - DF2_QH;
++  const size_t off = ((size_t)row * DF2_KVH + head) * DF2_D;
++  df2_head_norm_rope(K_raw + off, kw, pos, a.eps, a.theta, KB + off, nrm, lane);
++  const device bfloat* vs = V_raw + off;
++  device bfloat* vd = VB + off;
++  for (uint j = 0; j < 4; ++j) vd[lane + 32 * j] = vs[lane + 32 * j];
++}
++
++inline float df2_max(float x, float y) { return isnan(x) || isnan(y) ? NAN : max(x, y); }
++
++// Sliding-window bidirectional GQA 4:1 attention over context ring + block keys, 128 keys per chunk.
++[[kernel, max_total_threads_per_threadgroup(32)]] void tf_ink2_df2_attend(
++    const device bfloat* Q [[buffer(0)]], const device bfloat* KB [[buffer(1)]],
++    const device bfloat* VB [[buffer(2)]], const device bfloat* K_ring [[buffer(3)]],
++    const device bfloat* V_ring [[buffer(4)]], constant Df2AttendArgs& a [[buffer(5)]],
++    device float* part [[buffer(6)]], uint lane [[thread_index_in_simdgroup]],
++    uint3 tg [[threadgroup_position_in_grid]]) {
++  const uint kh = tg.x, row = tg.y, chunk = tg.z;
++  if (kh >= DF2_KVH || row >= a.rows || chunk * DF2_CHUNK >= a.keys) return;
++  const uint reach = a.anchor + row + 1;
++  const uint row_lo = max(a.from, reach > a.window ? reach - a.window : 0u);
++  const device bfloat4* q = (const device bfloat4*)(Q + ((size_t)row * DF2_QH + kh * DF2_G) * DF2_D);
++  float4 out[DF2_G];
++  float maximum[DF2_G], total[DF2_G];
++  for (uint g = 0; g < DF2_G; ++g) {
++    maximum[g] = -INFINITY;
++    total[g] = 0.0f;
++    out[g] = float4(0.0f);
++  }
++  const uint first = chunk * DF2_CHUNK;
++  const uint last = min(a.keys, first + DF2_CHUNK);
++  for (uint base = first; base < last; base += 32) {
++    const uint key = base + lane;
++    const bool in_range = key < last;
++    const bool is_ctx = key < a.retained;
++    const bool live = in_range && (!is_ctx || (a.lo + key) >= row_lo);
++    float dot[DF2_G] = {0.0f, 0.0f, 0.0f, 0.0f};
++    uint row_off = 0u;
++    if (in_range) {
++      const size_t krow = is_ctx ? (size_t)((a.lo + key) % a.ring) : (size_t)(key - a.retained);
++      row_off = uint((krow * DF2_KVH + kh) * DF2_D);
++      const device bfloat4* k = (const device bfloat4*)((is_ctx ? K_ring : KB) + row_off);
++      for (uint d = 0; d < 32; ++d) {
++        const float4 kv = float4(k[d]);
++        for (uint g = 0; g < DF2_G; ++g) {
++          const float4 qv = float4(q[g * 32 + d]);
++          dot[g] = fma(qv.w, kv.w, fma(qv.z, kv.z, fma(qv.y, kv.y, fma(qv.x, kv.x, dot[g]))));
++        }
++      }
++    }
++    float p[DF2_G];
++    for (uint g = 0; g < DF2_G; ++g) {
++      const float score = live ? dot[g] * a.scale : -INFINITY;
++      const bool nan = simd_any(isnan(score)) || isnan(maximum[g]);
++      const float next = nan ? NAN : max(maximum[g], simd_max(score));
++      const float old_w = maximum[g] == -INFINITY ? 0.0f : precise::exp(maximum[g] - next);
++      p[g] = live ? precise::exp(score - next) : 0.0f;
++      total[g] = fma(total[g], old_w, simd_sum(p[g]));
++      out[g] *= old_w;
++      maximum[g] = next;
++    }
++    const uint count = min(32u, last - base);
++    for (uint j = 0; j < count; ++j) {
++      const bool seen = simd_shuffle(uint(live), ushort(j)) != 0;
++      const uint off_j = simd_shuffle(row_off, ushort(j));
++      const device bfloat* vsrc = (base + j < a.retained ? V_ring : VB) + off_j;
++      const float4 x = seen ? float4(((const device bfloat4*)vsrc)[lane]) : float4(0.0f);
++      for (uint g = 0; g < DF2_G; ++g) out[g] = fma(float4(simd_shuffle(p[g], ushort(j))), x, out[g]);
++    }
++  }
++  for (uint g = 0; g < DF2_G; ++g) {
++    device float* o = part + ((((size_t)row * DF2_KVH + kh) * a.chunks + chunk) * DF2_G + g) * DF2_PART;
++    ((device float4*)o)[lane] = out[g];
++    if (lane == 0) { o[DF2_D] = maximum[g]; o[DF2_D + 1] = total[g]; }
++  }
++}
++
++// Merge attention chunk partials for each (head, row) into BF16 output [rows, 4096].
++[[kernel, max_total_threads_per_threadgroup(32)]] void tf_ink2_df2_attend_merge(
++    const device float* part [[buffer(0)]], constant Df2AttendArgs& a [[buffer(1)]],
++    device bfloat* O [[buffer(2)]], uint lane [[thread_index_in_simdgroup]],
++    uint2 tg [[threadgroup_position_in_grid]]) {
++  const uint head = tg.x, row = tg.y;
++  if (head >= DF2_QH || row >= a.rows) return;
++  const uint kh = head / DF2_G, g = head % DF2_G;
++  const device float* first = part + (((size_t)row * DF2_KVH + kh) * a.chunks * DF2_G + g) * DF2_PART;
++  const size_t step = (size_t)DF2_G * DF2_PART;
++  float maximum = -INFINITY;
++  for (uint c = 0; c < a.chunks; ++c) maximum = df2_max(maximum, first[c * step + DF2_D]);
++  float4 out = float4(0.0f);
++  float total = 0.0f;
++  for (uint c = 0; c < a.chunks; ++c) {
++    const device float* p = first + c * step;
++    if (p[DF2_D] == -INFINITY) continue;
++    const float w = precise::exp(p[DF2_D] - maximum);
++    total = fma(p[DF2_D + 1], w, total);
++    out = fma(((const device float4*)p)[lane], float4(w), out);
++  }
++  const size_t qi = ((size_t)row * DF2_QH + head) * DF2_D;
++  ((device bfloat4*)(O + qi))[lane] = bfloat4(total == 0.0f ? float4(0.0f) : out / total);
++}
++
++// Qwen3 SwiGLU over separate BF16 gate and up projections: bf16(bf16(silu(g)) * u).
++[[kernel, max_total_threads_per_threadgroup(256)]] void tf_ink2_df2_silu_mul(
++    const device bfloat* gate [[buffer(0)]], const device bfloat* up [[buffer(1)]],
++    constant Df2ActArgs& a [[buffer(2)]], device bfloat* out [[buffer(3)]],
++    uint i [[thread_position_in_grid]]) {
++  if (i >= a.count) return;
++  const float g = float(gate[i]);
++  const float e = precise::exp(-fabs(g)), y = 1.0f / (1.0f + e);
++  const float s = g < 0.0f ? e * y : y;
++  out[i] = bfloat(float(bfloat(g * s)) * float(up[i]));
++}
++
++inline uint df2_key(ushort raw) {
++  const uint bits = (raw & 0x7fffu) == 0 ? 0u : uint(raw);
++  return (bits & 0x8000u) != 0 ? (~bits & 0xffffu) : (bits | 0x8000u);
++}
++inline bool df2_before(uint key, uint id, uint ok, uint oid) {
++  return key > ok || (key == ok && id < oid);
++}
++inline void df2_bins(threadgroup atomic_uint* hist, threadgroup uint* bins, uint t) {
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  if (t < 256) {
++    uint n = 0;
++    for (uint s = 0; s < DF2_TOPK_SIMDS; ++s)
++      n += (atomic_load_explicit(&hist[s * 128 + t / 2], memory_order_relaxed) >> (16 * (t & 1))) & 0xffffu;
++    bins[t] = n;
++  }
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++}
++inline uint2 df2_cut(const threadgroup uint* bins, uint above, uint k) {
++  uint cum = above;
++  for (int b = 255; b >= 0; --b) {
++    if (cum + bins[b] >= k) return uint2(uint(b), cum);
++    cum += bins[b];
++  }
++  return uint2(0, cum);
++}
++
++// One-pass radix histogram top-k (k <= 16) over valid_vocab BF16 logits per row.
++[[kernel, max_total_threads_per_threadgroup(DF2_TOPK_THREADS)]] void tf_ink2_df2_topk16(
++    const device ushort* logits [[buffer(0)]], constant Df2TopkArgs& p [[buffer(1)]],
++    device float* vals_out [[buffer(2)]], device uint* ids_out [[buffer(3)]],
++    uint row [[threadgroup_position_in_grid]], uint t [[thread_index_in_threadgroup]],
++    uint sg [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
++  if (row >= p.rows) return;
++  threadgroup atomic_uint hist[DF2_TOPK_SIMDS * 128];
++  threadgroup uint bins[256], keys[DF2_TOPK_PICKS], ids[DF2_TOPK_PICKS], scores[DF2_TOPK_PICKS], counts[DF2_TOPK_SIMDS];
++  threadgroup atomic_uint flags, picked;
++  threadgroup uint cut[4];
++  const device ushort* x = logits + (size_t)row * p.stride;
++  for (uint i = t; i < DF2_TOPK_SIMDS * 128; i += DF2_TOPK_THREADS)
++    atomic_store_explicit(&hist[i], 0u, memory_order_relaxed);
++  if (t == 0) {
++    atomic_store_explicit(&flags, 0u, memory_order_relaxed);
++    atomic_store_explicit(&picked, 0u, memory_order_relaxed);
++  }
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  uint mask = 0;
++  for (uint tok = t; tok < p.vocab; tok += DF2_TOPK_THREADS) {
++    const ushort raw = x[tok];
++    if ((raw & 0x7f80u) == 0x7f80u) {
++      mask |= 1u;
++      continue;
++    }
++    const uint b = df2_key(raw) >> 8;
++    atomic_fetch_add_explicit(&hist[sg * 128 + b / 2], 1u << (16 * (b & 1)), memory_order_relaxed);
++  }
++  mask = simd_or(mask);
++  if (lane == 0 && mask != 0) atomic_fetch_or_explicit(&flags, mask, memory_order_relaxed);
++  df2_bins(hist, bins, t);
++  if (atomic_load_explicit(&flags, memory_order_relaxed) != 0) {
++    if (t < p.k) {
++      vals_out[(size_t)row * p.k + t] = -INFINITY;
++      ids_out[(size_t)row * p.k + t] = 0xffffffffu;
++    }
++    return;
++  }
++  if (t == 0) {
++    const uint2 h = df2_cut(bins, 0, p.k);
++    cut[0] = h.x;
++    cut[1] = h.y;
++  }
++  for (uint i = t; i < DF2_TOPK_SIMDS * 128; i += DF2_TOPK_THREADS)
++    atomic_store_explicit(&hist[i], 0u, memory_order_relaxed);
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  const uint high = cut[0];
++  for (uint tok = t; tok < p.vocab; tok += DF2_TOPK_THREADS) {
++    const uint key = df2_key(x[tok]);
++    if ((key >> 8) != high) continue;
++    const uint b = key & 0xffu;
++    atomic_fetch_add_explicit(&hist[sg * 128 + b / 2], 1u << (16 * (b & 1)), memory_order_relaxed);
++  }
++  df2_bins(hist, bins, t);
++  if (t == 0) {
++    const uint2 l = df2_cut(bins, cut[1], p.k);
++    cut[2] = (high << 8) | l.x;
++    cut[3] = l.y + bins[l.x];
++  }
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  const uint kth = cut[2];
++  if (cut[3] <= DF2_TOPK_PICKS) {
++    for (uint tok = t; tok < p.vocab; tok += DF2_TOPK_THREADS) {
++      const ushort raw = x[tok];
++      const uint key = df2_key(raw);
++      if (key < kth) continue;
++      const uint at = atomic_fetch_add_explicit(&picked, 1u, memory_order_relaxed);
++      keys[at] = key;
++      ids[at] = tok;
++      scores[at] = uint(raw) << 16;
++    }
++  } else {
++    uint taken = 0;
++    for (uint first = 0; first < p.vocab; first += DF2_TOPK_THREADS) {
++      const uint tok = first + t;
++      const ushort raw = tok < p.vocab ? x[tok] : ushort(0x7fc0);
++      const uint key = (raw & 0x7f80u) == 0x7f80u ? 0u : df2_key(raw);
++      const uint equal = key == kth ? 1u : 0u;
++      if (key > kth) {
++        const uint at = atomic_fetch_add_explicit(&picked, 1u, memory_order_relaxed);
++        keys[at] = key;
++        ids[at] = tok;
++        scores[at] = uint(raw) << 16;
++      }
++      const uint before = simd_prefix_exclusive_sum(equal);
++      if (lane == 31) counts[sg] = before + equal;
++      threadgroup_barrier(mem_flags::mem_threadgroup);
++      uint rank = taken + before;
++      for (uint s = 0; s < sg; ++s) rank += counts[s];
++      uint all = 0;
++      for (uint s = 0; s < DF2_TOPK_SIMDS; ++s) all += counts[s];
++      if (equal != 0 && rank < DF2_TOPK_PICKS - DF2_MAX_K) {
++        keys[DF2_TOPK_PICKS - 1 - rank] = key;
++        ids[DF2_TOPK_PICKS - 1 - rank] = tok;
++        scores[DF2_TOPK_PICKS - 1 - rank] = uint(raw) << 16;
++      }
++      taken += all;
++      threadgroup_barrier(mem_flags::mem_threadgroup);
++    }
++    if (t == 0) {
++      const uint above = atomic_load_explicit(&picked, memory_order_relaxed);
++      const uint equal = min(taken, uint(DF2_TOPK_PICKS - DF2_MAX_K));
++      for (uint i = 0; i < equal; ++i) {
++        keys[above + i] = keys[DF2_TOPK_PICKS - 1 - i];
++        ids[above + i] = ids[DF2_TOPK_PICKS - 1 - i];
++        scores[above + i] = scores[DF2_TOPK_PICKS - 1 - i];
++      }
++      atomic_store_explicit(&picked, above + equal, memory_order_relaxed);
++    }
++  }
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  const uint n = atomic_load_explicit(&picked, memory_order_relaxed);
++  if (t < n) {
++    uint place = 0;
++    for (uint j = 0; j < n; ++j) place += df2_before(keys[j], ids[j], keys[t], ids[t]) ? 1u : 0u;
++    if (place < p.k) {
++      vals_out[(size_t)row * p.k + place] = as_type<float>(scores[t]);
++      ids_out[(size_t)row * p.k + place] = ids[t];
++    }
++  }
++}
++
++// Candidate selector greedy walk with after-correction softcap: cap * tanh(score / cap).
++[[kernel, max_total_threads_per_threadgroup(256)]] void tf_ink2_df2_walk(
++    const device float* UV [[buffer(0)]], const device uint* UI [[buffer(1)]],
++    const device bfloat* H [[buffer(2)]], const device bfloat* A [[buffer(3)]],
++    const device bfloat* B [[buffer(4)]], constant Df2WalkArgs& a [[buffer(5)]],
++    device uint* seq [[buffer(6)]], uint t [[thread_position_in_threadgroup]],
++    uint lane [[thread_index_in_simdgroup]], uint sg [[simdgroup_index_in_threadgroup]]) {
++  threadgroup float part[8][16];
++  threadgroup uint prev;
++  if (t == 0) prev = seq[0];
++  threadgroup_barrier(mem_flags::mem_threadgroup);
++  for (uint e = 0; e < a.slots; ++e) {
++    if (prev >= a.vocab) {
++      if (t == 0) seq[1 + e] = 0xffffffffu;
++      continue;
++    }
++    const float ah = float(bfloat(float(A[(size_t)prev * a.rank + t]) * float(H[(size_t)e * a.rank + t])));
++    for (uint c = 0; c < a.top; ++c) {
++      const uint cand = UI[e * a.top + c];
++      const float bv = cand < a.vocab ? float(B[(size_t)cand * a.rank + t]) : 0.0f;
++      const float s = simd_sum(ah * bv);
++      if (lane == 0) part[sg][c] = s;
++    }
++    threadgroup_barrier(mem_flags::mem_threadgroup);
++    if (t == 0) {
++      float best = -INFINITY;
++      uint best_id = 0xffffffffu;
++      for (uint c = 0; c < a.top; ++c) {
++        const uint cand = UI[e * a.top + c];
++        if (cand >= a.vocab) continue;
++        float s = UV[e * a.top + c];
++        for (uint k = 0; k < a.rank / 32; ++k) s += part[k][c];
++        if (a.softcap > 0.0f) s = a.softcap * tanh(s / a.softcap);
++        if (isfinite(s) && s > best) { best = s; best_id = cand; }
++      }
++      prev = best_id;
++      seq[1 + e] = prev;
++    }
++    threadgroup_barrier(mem_flags::mem_threadgroup);
++  }
++}
+diff --git a/zig/kernels/metal/inkling2/dflash2_sources.zig b/zig/kernels/metal/inkling2/dflash2_sources.zig
+new file mode 100644
+index 000000000..2276ea4ff
+--- /dev/null
++++ b/zig/kernels/metal/inkling2/dflash2_sources.zig
+@@ -0,0 +1,3 @@
++//! Mini DFlash 2 drafter shader source.
++
++pub const dflash2 = @embedFile("dflash2.metal");
+diff --git a/zig/kernels/metal/inkling2_sources.zig b/zig/kernels/metal/inkling2_sources.zig
+index 4221697c0..5a2502036 100644
+--- a/zig/kernels/metal/inkling2_sources.zig
++++ b/zig/kernels/metal/inkling2_sources.zig
+@@ -13,3 +13,4 @@ pub const runtime = @import("inkling2/runtime_sources.zig").runtime;
+ pub const inkling2_dspark = @import("inkling2/dspark_sources.zig").dspark;
+ pub const inkling2_dspark_pre_m5 = @import("inkling2/dspark_sources.zig").dspark_pre_m5;
+ pub const vision = @import("inkling2/vision_sources.zig").vision;
++pub const inkling2_dflash2 = @import("inkling2/dflash2_sources.zig").dflash2;
+diff --git a/zig/src/core/contract.zig b/zig/src/core/contract.zig
+index b9a096ab3..b64ccfea0 100644
+--- a/zig/src/core/contract.zig
++++ b/zig/src/core/contract.zig
+@@ -16,6 +16,7 @@ pub const attention_range = @import("attention_range.zig");
+ pub const limits = @import("contract/limits.zig");
+ pub const inkling2_glue_metal_records = @import("contract/inkling2_glue_metal_records.zig");
+ pub const inkling2_dspark_metal_records = @import("contract/inkling2_dspark_metal_records.zig");
++pub const inkling2_dflash2_metal_records = @import("contract/inkling2_dflash2_metal_records.zig");
+ pub const inkling2_loop_metal_records = @import("contract/inkling2_loop_metal_records.zig");
+ pub const inkling2_runtime_metal_records = @import("contract/inkling2_runtime_metal_records.zig");
+ pub const lane_q8 = @import("contract/lane_q8_records.zig");
+diff --git a/zig/src/core/contract/inkling2_dflash2_metal_records.zig b/zig/src/core/contract/inkling2_dflash2_metal_records.zig
+new file mode 100644
+index 000000000..7a5a2adc5
+--- /dev/null
++++ b/zig/src/core/contract/inkling2_dflash2_metal_records.zig
+@@ -0,0 +1,15 @@
++//! Mini DFlash 2 Metal launches (zig/kernels/metal/inkling2/dflash2.metal).
++const M = @import("limits.zig").MetalLaunch;
++pub const records = [_]M{
++    .{ .name = "metal inkling2 dflash2 embed tf_ink2_df2_embed", .threads = 256, .tg_memory = 32, .reserved = 256 },
++    .{ .name = "metal inkling2 dflash2 norm tf_ink2_df2_norm", .threads = 256, .tg_memory = 32, .reserved = 256 },
++    .{ .name = "metal inkling2 dflash2 norm16 tf_ink2_df2_norm16", .threads = 256, .tg_memory = 32, .reserved = 256 },
++    .{ .name = "metal inkling2 dflash2 conv tf_ink2_df2_conv", .threads = 256, .tg_memory = 0, .reserved = 256 },
++    .{ .name = "metal inkling2 dflash2 ctx_kv tf_ink2_df2_ctx_kv", .threads = 32, .tg_memory = 512, .reserved = 32 },
++    .{ .name = "metal inkling2 dflash2 block_qkv tf_ink2_df2_block_qkv", .threads = 32, .tg_memory = 512, .reserved = 32 },
++    .{ .name = "metal inkling2 dflash2 attend tf_ink2_df2_attend", .threads = 32, .tg_memory = 0, .reserved = 32 },
++    .{ .name = "metal inkling2 dflash2 attend_merge tf_ink2_df2_attend_merge", .threads = 32, .tg_memory = 0, .reserved = 32 },
++    .{ .name = "metal inkling2 dflash2 silu_mul tf_ink2_df2_silu_mul", .threads = 256, .tg_memory = 0, .reserved = 256 },
++    .{ .name = "metal inkling2 dflash2 topk16 tf_ink2_df2_topk16", .threads = 512, .tg_memory = 10080, .reserved = 512 },
++    .{ .name = "metal inkling2 dflash2 walk tf_ink2_df2_walk", .threads = 256, .tg_memory = 528, .reserved = 256 },
++};
+diff --git a/zig/src/core/contract/registry_joins.zig b/zig/src/core/contract/registry_joins.zig
+index 632be8d9a..6945d4dd0 100644
+--- a/zig/src/core/contract/registry_joins.zig
++++ b/zig/src/core/contract/registry_joins.zig
+@@ -117,6 +117,7 @@ pub const all_metal = @import("penalties_records.zig").records ++
+     @import("inkling2_runtime_metal_records.zig").records ++
+     @import("inkling2_dspark_metal_records.zig").records ++
+     @import("inkling2_vision_metal_records.zig").records ++
++    @import("inkling2_dflash2_metal_records.zig").records ++
+     @import("flint_records.zig").records ++
+     @import("hy4_records.zig").metal ++
+     @import("uocr_records.zig").records ++
+@@ -170,6 +171,7 @@ test {
+     _ = @import("inkling2_dspark_metal_records.zig");
+     _ = @import("h3_image_cuda_records.zig");
+     _ = @import("inkling2_vision_metal_records.zig");
++    _ = @import("inkling2_dflash2_metal_records.zig");
+     _ = @import("zonos3_cuda_records.zig");
+     _ = @import("hy4_ihc_hc_records.zig");
+ }
+diff --git a/zig/src/families/inkling2/metal/dflash2.zig b/zig/src/families/inkling2/metal/dflash2.zig
+new file mode 100644
+index 000000000..66d1b5d9f
+--- /dev/null
++++ b/zig/src/families/inkling2/metal/dflash2.zig
+@@ -0,0 +1,441 @@
++//! Inkling 2 Mini DFlash 2 drafter on Metal: five Qwen3+conv layers, sliding 2048 context rings, top-16 path selector.
++const std = @import("std");
++const mtl = @import("metal");
++const lanes = @import("lanes");
++const sys = @import("sys");
++const ck = @import("../../../core/checkpoint_metal.zig");
++const Model = @import("model.zig").Model;
++const fwd = @import("forward.zig");
++const w = @import("dflash2_weights.zig");
++const k = @import("dflash2_kernels.zig");
++
++const dr = lanes.drafter;
++const Stream = lanes.Stream;
++const Ref = k.Ref;
++const tap_list = [_]u32{ 5, 23, 41, 48 };
++const draft_prior = [_]f64{ 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55 };
++const absorb_rows: usize = 256;
++const max_chunks: usize = (w.window_size + w.block_size + 127) / 128;
++
++fn at(buf: mtl.Buffer, off: usize) Ref {
++    return .{ .buf = buf, .off = off };
++}
++fn r(t: ck.Tensor) Ref {
++    return .{ .buf = t.buffer, .off = t.offset };
++}
++
++fn now() f64 {
++    var ts: sys.c.timespec = undefined;
++    _ = sys.c.clock_gettime(sys.c.CLOCK.MONOTONIC, &ts);
++    return @as(f64, @floatFromInt(ts.sec)) * 1000.0 + @as(f64, @floatFromInt(ts.nsec)) * 1e-6;
++}
++
++fn failed(cb: mtl.CommandBuffer, what: []const u8) !void {
++    cb.wait();
++    if (cb.failure()) |msg| {
++        std.log.err("inkling2_loop DFlash2 {s}: {s}", .{ what, msg });
++        return error.GpuFailed;
++    }
++}
++
++const scratch_fields = [_][]const u8{
++    "ids",  "resid", "x",  "xc",   "dyn", "q_raw", "k_raw",  "v_raw", "q",    "kb",  "vb",  "part",
++    "attn", "y",     "yc", "gate", "up",  "act",   "logits", "hid",   "tval", "tid", "seq", "fcx",
++    "hctx", "ck",    "cv",
++};
++
++fn scratchSizes() [scratch_fields.len]usize {
++    const n = w.block_size;
++    const d = n - 1;
++    const a = absorb_rows;
++    const bf = 2;
++    return .{
++        n * 4,
++        n * w.hidden * 4,
++        n * w.hidden * bf,
++        n * w.hidden * bf,
++        n * w.dyn_width * bf,
++        n * w.query_width * bf,
++        n * w.kv_width * bf,
++        n * w.kv_width * bf,
++        n * w.query_width * bf,
++        n * w.kv_width * bf,
++        n * w.kv_width * bf,
++        n * w.q_heads * max_chunks * 132 * 4,
++        n * w.query_width * bf,
++        n * w.hidden * bf,
++        n * w.hidden * bf,
++        n * w.intermediate * bf,
++        n * w.intermediate * bf,
++        n * w.intermediate * bf,
++        d * w.padded_vocab * bf,
++        d * w.rank * bf,
++        d * w.top_k * 4,
++        d * w.top_k * 4,
++        n * 4,
++        a * w.hidden * bf,
++        a * w.hidden * bf,
++        a * w.kv_width * bf,
++        a * w.kv_width * bf,
++    };
++}
++
++pub fn scratchBytes() u64 {
++    var total: u64 = 0;
++    for (scratchSizes()) |s| total += s;
++    return total;
++}
++
++pub fn streamBytes() u64 {
++    return @as(u64, w.layers_n) * 2 * w.ring_size * w.kv_width * 2;
++}
++
++const Scratch = struct {
++    ids: mtl.Buffer,
++    resid: mtl.Buffer,
++    x: mtl.Buffer,
++    xc: mtl.Buffer,
++    dyn: mtl.Buffer,
++    q_raw: mtl.Buffer,
++    k_raw: mtl.Buffer,
++    v_raw: mtl.Buffer,
++    q: mtl.Buffer,
++    kb: mtl.Buffer,
++    vb: mtl.Buffer,
++    part: mtl.Buffer,
++    attn: mtl.Buffer,
++    y: mtl.Buffer,
++    yc: mtl.Buffer,
++    gate: mtl.Buffer,
++    up: mtl.Buffer,
++    act: mtl.Buffer,
++    logits: mtl.Buffer,
++    hid: mtl.Buffer,
++    tval: mtl.Buffer,
++    tid: mtl.Buffer,
++    seq: mtl.Buffer,
++    fcx: mtl.Buffer,
++    hctx: mtl.Buffer,
++    ck: mtl.Buffer,
++    cv: mtl.Buffer,
++
++    fn init(device: mtl.Device) !Scratch {
++        @setEvalBranchQuota(10_000);
++        const ns = scratchSizes();
++        var s: Scratch = undefined;
++        var made: usize = 0;
++        errdefer inline for (scratch_fields, 0..) |f, i| if (i < made) @field(s, f).deinit();
++        inline for (scratch_fields, 0..) |f, i| {
++            @field(s, f) = try device.buffer(@max(ns[i], 16), mtl.ResourceOptions.shared);
++            made += 1;
++        }
++        return s;
++    }
++
++    fn deinit(s: *Scratch) void {
++        inline for (scratch_fields) |f| @field(s, f).deinit();
++        s.* = undefined;
++    }
++};
++
++const Lane = struct {
++    k: [w.layers_n]mtl.Buffer,
++    v: [w.layers_n]mtl.Buffer,
++    from: u64 = 0,
++    end: u64 = 0,
++    held: [w.block_size - 1]u32 = @splat(0),
++    held_len: u32 = 0,
++
++    fn init(device: mtl.Device) !Lane {
++        var l: Lane = .{ .k = undefined, .v = undefined };
++        const bytes = w.ring_size * w.kv_width * 2;
++        var made: usize = 0;
++        errdefer for (0..made) |i| {
++            l.k[i].deinit();
++            l.v[i].deinit();
++        };
++        for (0..w.layers_n) |i| {
++            l.k[i] = try device.buffer(bytes, mtl.ResourceOptions.private);
++            l.v[i] = device.buffer(bytes, mtl.ResourceOptions.private) catch |err| {
++                l.k[i].deinit();
++                return err;
++            };
++            made += 1;
++        }
++        return l;
++    }
++
++    fn deinit(l: *Lane) void {
++        for (0..w.layers_n) |i| {
++            l.k[i].deinit();
++            l.v[i].deinit();
++        }
++        l.* = undefined;
++    }
++};
++
++pub const Drafter = struct {
++    gpa: std.mem.Allocator,
++    target: *const Model,
++    loaded: w.Loaded,
++    pipelines: k.Pipelines,
++    scratch: Scratch,
++    contexts: std.AutoHashMapUnmanaged(*Stream, Lane) = .empty,
++    pending: ?mtl.CommandBuffer = null,
++    step_ms: f64 = 0,
++    use_embed_norm: bool = true,
++
++    pub fn init(gpa: std.mem.Allocator, io: std.Io, device: mtl.Device, target: *const Model, drafter_dir: []const u8) !*Drafter {
++        const pool = mtl.objc.Pool.push();
++        defer pool.pop();
++        const d = try gpa.create(Drafter);
++        errdefer gpa.destroy(d);
++        d.* = .{
++            .gpa = gpa,
++            .target = target,
++            .loaded = try w.load(gpa, io, target, drafter_dir),
++            .pipelines = undefined,
++            .scratch = undefined,
++        };
++        errdefer d.loaded.deinit();
++        d.pipelines = try k.Pipelines.load(device);
++        errdefer d.pipelines.deinit();
++        d.scratch = try Scratch.init(device);
++        errdefer d.scratch.deinit();
++        try d.warm();
++        std.log.info("inkling2_loop DFlash2: loaded {s} (block={d}, top_k={d}, block_ms={d:.2})", .{
++            drafter_dir, d.loaded.config.block, d.loaded.config.top_k, d.step_ms * 7.0,
++        });
++        return d;
++    }
++
++    pub fn deinit(d: *Drafter) void {
++        d.settle() catch {};
++        var it = d.contexts.valueIterator();
++        while (it.next()) |lane| lane.deinit();
++        d.contexts.deinit(d.gpa);
++        d.scratch.deinit();
++        d.pipelines.deinit();
++        d.loaded.deinit();
++        d.gpa.destroy(d);
++    }
++
++    pub fn fixedBytes(d: *const Drafter) u64 {
++        return d.loaded.fixedBytes() + scratchBytes();
++    }
++
++    pub fn drafter(d: *Drafter) dr.Drafter {
++        return .{ .kind = "DFlash2", .ptr = d, .vtable = &.{ .taps = tapsFn, .facts = factsFn, .open = openFn, .absorb = absorbFn, .hold = holdFn, .held = heldFn, .release = releaseFn } };
++    }
++
++    fn cast(ptr: *anyopaque) *Drafter {
++        return @ptrCast(@alignCast(ptr));
++    }
++
++    fn tapsFn(_: *anyopaque) []const u32 {
++        return &tap_list;
++    }
++
++    fn factsFn(ptr: *anyopaque) dr.Facts {
++        const d = cast(ptr);
++        return .{ .fixed_block = true, .depth = w.block_size - 1, .step_ms = d.step_ms, .prior = &draft_prior, .plain_guard = false, .stream_bytes = @intCast(streamBytes()) };
++    }
++
++    fn settle(d: *Drafter) !void {
++        const cb = d.pending orelse return;
++        d.pending = null;
++        defer cb.release();
++        try failed(cb, "absorb");
++    }
++
++    fn openFn(ptr: *anyopaque, stream: *Stream) anyerror!void {
++        const d = cast(ptr);
++        if (d.contexts.contains(stream)) return error.DraftStreamOpen;
++        var lane = try Lane.init(d.target.device);
++        errdefer lane.deinit();
++        try d.contexts.put(d.gpa, stream, lane);
++    }
++
++    fn releaseFn(ptr: *anyopaque, stream: *Stream) void {
++        const d = cast(ptr);
++        d.settle() catch {};
++        if (d.contexts.fetchRemove(stream)) |entry| {
++            var lane = entry.value;
++            lane.deinit();
++        }
++    }
++
++    fn heldFn(ptr: *anyopaque, streams: []const *Stream, out: []const []u32) anyerror!void {
++        const d = cast(ptr);
++        for (streams, out) |stream, tokens| {
++            const lane = d.contexts.getPtr(stream) orelse return error.DraftStreamUnknown;
++            if (tokens.len > lane.held_len) return error.DraftHeldFewer;
++            @memcpy(tokens, lane.held[0..tokens.len]);
++        }
++    }
++
++    fn absorbRows(d: *Drafter, e: mtl.ComputeEncoder, lane: *const Lane, taps: Ref, start: u64, rows: usize) void {
++        const c = &d.loaded.config;
++        const s = &d.scratch;
++        fwd.dense(d.target, e, d.loaded.weights.fc, taps, at(s.fcx, 0), rows);
++        k.norm16(&d.pipelines, e, at(s.fcx, 0), r(d.loaded.weights.hidden_norm), at(s.hctx, 0), .{ .rows = @intCast(rows), .width = c.hidden, .eps = c.eps, .add = 0 });
++        for (d.loaded.weights.layers, 0..) |layer, i| {
++            fwd.dense(d.target, e, layer.k_proj, at(s.hctx, 0), at(s.ck, 0), rows);
++            fwd.dense(d.target, e, layer.v_proj, at(s.hctx, 0), at(s.cv, 0), rows);
++            k.ctxKv(&d.pipelines, e, at(s.ck, 0), at(s.cv, 0), r(layer.k_norm), at(lane.k[i], 0), at(lane.v[i], 0), .{
++                .rows = @intCast(rows),
++                .pos0 = @intCast(start),
++                .ring = @intCast(w.ring_size),
++                .eps = c.eps,
++                .theta = c.theta,
++            });
++        }
++    }
++
++    fn absorbFn(ptr: *anyopaque, items: []const dr.Absorb) anyerror!void {
++        const d = cast(ptr);
++        try d.settle();
++        if (items.len == 0) return;
++        const pool = mtl.objc.Pool.push();
++        defer pool.pop();
++        const cb = d.target.queue.commandBuffer();
++        const e = cb.compute(.serial);
++        const row_bytes = w.taps_n * w.hidden * 2;
++        const keep_window: u64 = w.window_size + w.block_size;
++        for (items) |item| {
++            const lane = d.contexts.getPtr(item.stream) orelse return error.DraftStreamUnknown;
++            const features = item.features;
++            if (features.space != .device or features.dtype != .bf16 or features.row_bytes != row_bytes) return error.DraftFeaturesUnsupported;
++            if (item.rows != null) return error.TreesNotBuilt;
++            if (features.rows == 0 or features.rows > 1048576) return error.DraftFeaturesUnsupported;
++            if (item.start < lane.end) return error.DraftContextGap;
++            if (item.start > lane.end) lane.from = item.start;
++            const end = item.start + features.rows;
++            const keep_from = if (item.prompt) @max(item.start, item.stream.prompt_len -| keep_window) else item.start;
++            if (keep_from > lane.from and keep_from > lane.end) lane.from = keep_from;
++            const source = mtl.Buffer{ .id = @ptrFromInt(features.buffer) };
++            var position = keep_from;
++            while (position < end) {
++                const rows: usize = @intCast(@min(absorb_rows, end - position));
++                const offset = features.offset + @as(usize, @intCast(position - item.start)) * row_bytes;
++                d.absorbRows(e, lane, at(source, offset), position, rows);
++                position += rows;
++            }
++            lane.end = end;
++            lane.held_len = 0;
++        }
++        e.end();
++        cb.commit();
++        d.pending = cb.retain();
++    }
++
++    fn encodeBlock(d: *Drafter, e: mtl.ComputeEncoder, lane: *const Lane, pending: u32, anchor: u64) void {
++        const c = &d.loaded.config;
++        const s = &d.scratch;
++        const n = w.block_size;
++        const ids = s.ids.slice(u32, n);
++        ids[0] = pending;
++        for (1..n) |j| ids[j] = c.mask;
++        s.seq.slice(u32, n)[0] = pending;
++        k.embed(&d.pipelines, e, at(s.ids, 0), r(d.target.weights.embed), r(d.target.weights.embed_norm), at(s.resid, 0), .{
++            .rows = n,
++            .width = c.hidden,
++            .use_norm = @intFromBool(d.use_embed_norm),
++            .eps = c.eps,
++        });
++        const lo = @max(lane.from, (anchor + 1) -| c.window);
++        const retained: u32 = @intCast(anchor - lo);
++        const keys: u32 = retained + @as(u32, n);
++        const chunks: u32 = (keys + 127) / 128;
++        const attend_args: k.AttendArgs = .{
++            .rows = n,
++            .anchor = @intCast(anchor),
++            .from = @intCast(lane.from),
++            .lo = @intCast(lo),
++            .retained = retained,
++            .keys = keys,
++            .window = c.window,
++            .ring = @intCast(w.ring_size),
++            .chunks = chunks,
++            .scale = 1.0 / @sqrt(128.0),
++        };
++        for (d.loaded.weights.layers, 0..) |layer, i| {
++            k.norm(&d.pipelines, e, at(s.resid, 0), at(s.yc, 0), r(layer.in_norm), at(s.x, 0), .{ .rows = n, .width = c.hidden, .eps = c.eps, .add = @intFromBool(i > 0) });
++            fwd.dense(d.target, e, layer.attn_conv.proj, at(s.x, 0), at(s.dyn, 0), n);
++            k.conv(&d.pipelines, e, at(s.x, 0), at(s.dyn, 0), r(layer.attn_conv.base), at(s.xc, 0), .{ .rows = n, .width = c.hidden, .block = n, .groups = w.conv_groups, .side = 0 });
++            fwd.dense(d.target, e, layer.q_proj, at(s.xc, 0), at(s.q_raw, 0), n);
++            fwd.dense(d.target, e, layer.k_proj, at(s.xc, 0), at(s.k_raw, 0), n);
++            fwd.dense(d.target, e, layer.v_proj, at(s.xc, 0), at(s.v_raw, 0), n);
++            k.blockQkv(&d.pipelines, e, at(s.q_raw, 0), at(s.k_raw, 0), at(s.v_raw, 0), r(layer.q_norm), r(layer.k_norm), at(s.q, 0), at(s.kb, 0), at(s.vb, 0), .{ .rows = n, .block = n, .pos0 = @intCast(anchor), .eps = c.eps, .theta = c.theta });
++            k.attend(&d.pipelines, e, at(s.q, 0), at(s.kb, 0), at(s.vb, 0), at(lane.k[i], 0), at(lane.v[i], 0), at(s.part, 0), at(s.attn, 0), attend_args);
++            fwd.dense(d.target, e, layer.o_proj, at(s.attn, 0), at(s.y, 0), n);
++            k.conv(&d.pipelines, e, at(s.y, 0), at(s.dyn, 0), r(layer.attn_conv.base), at(s.yc, 0), .{ .rows = n, .width = c.hidden, .block = n, .groups = w.conv_groups, .side = 1 });
++            k.norm(&d.pipelines, e, at(s.resid, 0), at(s.yc, 0), r(layer.post_norm), at(s.x, 0), .{ .rows = n, .width = c.hidden, .eps = c.eps, .add = 1 });
++            fwd.dense(d.target, e, layer.mlp_conv.proj, at(s.x, 0), at(s.dyn, 0), n);
++            k.conv(&d.pipelines, e, at(s.x, 0), at(s.dyn, 0), r(layer.mlp_conv.base), at(s.xc, 0), .{ .rows = n, .width = c.hidden, .block = n, .groups = w.conv_groups, .side = 0 });
++            fwd.dense(d.target, e, layer.gate_proj, at(s.xc, 0), at(s.gate, 0), n);
++            fwd.dense(d.target, e, layer.up_proj, at(s.xc, 0), at(s.up, 0), n);
++            k.siluMul(&d.pipelines, e, at(s.gate, 0), at(s.up, 0), at(s.act, 0), n * w.intermediate);
++            fwd.dense(d.target, e, layer.down_proj, at(s.act, 0), at(s.y, 0), n);
++            k.conv(&d.pipelines, e, at(s.y, 0), at(s.dyn, 0), r(layer.mlp_conv.base), at(s.yc, 0), .{ .rows = n, .width = c.hidden, .block = n, .groups = w.conv_groups, .side = 1 });
++        }
++        k.norm(&d.pipelines, e, at(s.resid, 0), at(s.yc, 0), r(d.loaded.weights.norm), at(s.x, 0), .{ .rows = n, .width = c.hidden, .eps = c.eps, .add = 1 });
++        const draft_rows = n - 1;
++        const x_draft = at(s.x, w.hidden * 2);
++        fwd.dense(d.target, e, d.target.weights.unembed, x_draft, at(s.logits, 0), draft_rows);
++        fwd.dense(d.target, e, d.loaded.weights.hidden_proj, x_draft, at(s.hid, 0), draft_rows);
++        k.topk16(&d.pipelines, e, at(s.logits, 0), at(s.tval, 0), at(s.tid, 0), .{ .rows = draft_rows, .vocab = w.valid_vocab, .k = c.top_k, .stride = w.padded_vocab });
++        k.walk(&d.pipelines, e, at(s.tval, 0), at(s.tid, 0), at(s.hid, 0), r(d.loaded.weights.pred_cb), r(d.loaded.weights.succ_cb), at(s.seq, 0), .{ .slots = draft_rows, .rank = c.rank, .top = c.top_k, .vocab = w.valid_vocab, .softcap = c.softcap });
++    }
++
++    fn holdFn(ptr: *anyopaque, items: []const dr.Hold) anyerror!void {
++        const d = cast(ptr);
++        try d.settle();
++        for (items) |item| {
++            const lane = d.contexts.getPtr(item.stream) orelse return error.DraftStreamUnknown;
++            if (item.depth == 0 or item.position == 0) return error.DraftDepth;
++            const anchor = item.position - 1;
++            if (lane.end != anchor) return error.DraftContextGap;
++            const depth: usize = @min(item.depth, w.block_size - 1);
++            const pool = mtl.objc.Pool.push();
++            defer pool.pop();
++            const cb = d.target.queue.commandBuffer();
++            const e = cb.compute(.serial);
++            d.encodeBlock(e, lane, item.pending, anchor);
++            e.end();
++            cb.commit();
++            try failed(cb, "hold");
++            const seq = d.scratch.seq.slice(u32, w.block_size);
++            for (seq[1..][0..depth], lane.held[0..depth]) |tok, *dst| {
++                if (tok >= w.valid_vocab) return error.DraftNonfinite;
++                dst.* = tok;
++            }
++            lane.held_len = @intCast(depth);
++        }
++    }
++
++    fn warm(d: *Drafter) !void {
++        var lane = try Lane.init(d.target.device);
++        defer lane.deinit();
++        var ms: f64 = 0;
++        for (0..3) |run| {
++            const t0 = now();
++            const pool = mtl.objc.Pool.push();
++            defer pool.pop();
++            const cb = d.target.queue.commandBuffer();
++            const e = cb.compute(.serial);
++            d.encodeBlock(e, &lane, 2, 0);
++            e.end();
++            cb.commit();
++            try failed(cb, "warm");
++            if (run == 2) ms = now() - t0;
++        }
++        d.step_ms = ms / @as(f64, @floatFromInt(w.block_size - 1));
++    }
++};
++
++test "DFlash2 stream and scratch accounting fit fixed ring geometry" {
++    try std.testing.expectEqual(@as(usize, 2176), w.ring_size);
++    try std.testing.expectEqual(@as(u64, 5 * 2 * 2176 * 1024 * 2), streamBytes());
++    try std.testing.expect(scratchBytes() > 0);
++}
+diff --git a/zig/src/families/inkling2/metal/dflash2_kernels.zig b/zig/src/families/inkling2/metal/dflash2_kernels.zig
+new file mode 100644
+index 000000000..cc4c4147d
+--- /dev/null
++++ b/zig/src/families/inkling2/metal/dflash2_kernels.zig
+@@ -0,0 +1,215 @@
++//! Inkling 2 Mini DFlash 2 Metal kernel pipelines and typed launch wrappers.
++const std = @import("std");
++const mtl = @import("metal");
++const sources = @import("inkling2_metal");
++const w = @import("dflash2_weights.zig");
++
++pub const Ref = @import("inkling2_metal_ref").Ref;
++pub const hidden = w.hidden;
++pub const query_width = w.query_width;
++pub const kv_width = w.kv_width;
++pub const q_heads = w.q_heads;
++pub const kv_heads = w.kv_heads;
++pub const head_dim = w.head_dim;
++pub const intermediate = w.intermediate;
++pub const rank = w.rank;
++pub const conv_groups = w.conv_groups;
++pub const block_size = w.block_size;
++pub const top_k = w.top_k;
++
++pub const EmbedArgs = extern struct { rows: u32, width: u32, use_norm: u32, eps: f32 };
++pub const NormArgs = extern struct { rows: u32, width: u32, eps: f32, add: u32 };
++pub const ConvArgs = extern struct { rows: u32, width: u32, block: u32, groups: u32, side: u32 };
++pub const CtxArgs = extern struct { rows: u32, pos0: u32, ring: u32, eps: f32, theta: f32 };
++pub const BlockQkvArgs = extern struct { rows: u32, block: u32, pos0: u32, eps: f32, theta: f32 };
++pub const AttendArgs = extern struct { rows: u32, anchor: u32, from: u32, lo: u32, retained: u32, keys: u32, window: u32, ring: u32, chunks: u32, scale: f32 };
++pub const ActArgs = extern struct { count: u32 };
++pub const TopkArgs = extern struct { rows: u32, vocab: u32, k: u32, stride: u32 };
++pub const WalkArgs = extern struct { slots: u32, rank: u32, top: u32, vocab: u32, softcap: f32 };
++
++pub const Kind = enum {
++    embed,
++    norm,
++    norm16,
++    conv,
++    ctx_kv,
++    block_qkv,
++    attend,
++    attend_merge,
++    silu_mul,
++    topk16,
++    walk,
++
++    pub fn symbol(k: Kind) [:0]const u8 {
++        return switch (k) {
++            .embed => "tf_ink2_df2_embed",
++            .norm => "tf_ink2_df2_norm",
++            .norm16 => "tf_ink2_df2_norm16",
++            .conv => "tf_ink2_df2_conv",
++            .ctx_kv => "tf_ink2_df2_ctx_kv",
++            .block_qkv => "tf_ink2_df2_block_qkv",
++            .attend => "tf_ink2_df2_attend",
++            .attend_merge => "tf_ink2_df2_attend_merge",
++            .silu_mul => "tf_ink2_df2_silu_mul",
++            .topk16 => "tf_ink2_df2_topk16",
++            .walk => "tf_ink2_df2_walk",
++        };
++    }
++
++    pub fn label(k: Kind) []const u8 {
++        return switch (k) {
++            inline else => |v| std.fmt.comptimePrint("metal inkling2 dflash2 {s} {s}", .{ @tagName(v), comptime v.symbol() }),
++        };
++    }
++};
++
++pub const Pipelines = struct {
++    embed: mtl.Pipeline,
++    norm: mtl.Pipeline,
++    norm16: mtl.Pipeline,
++    conv: mtl.Pipeline,
++    ctx_kv: mtl.Pipeline,
++    block_qkv: mtl.Pipeline,
++    attend: mtl.Pipeline,
++    attend_merge: mtl.Pipeline,
++    silu_mul: mtl.Pipeline,
++    topk16: mtl.Pipeline,
++    walk: mtl.Pipeline,
++
++    pub fn load(device: mtl.Device) !Pipelines {
++        return loadSource(device, sources.inkling2_dflash2);
++    }
++
++    pub fn loadSource(device: mtl.Device, text: []const u8) !Pipelines {
++        const lib = try mtl.Library.fromSource(device, text, .{ .language = mtl.CompileOptions.mlx().language, .math_functions = .precise });
++        defer lib.deinit();
++        var out: Pipelines = undefined;
++        var made: usize = 0;
++        errdefer inline for (@typeInfo(Pipelines).@"struct".field_names, 0..) |name, i| {
++            if (made > i) @field(out, name).deinit();
++        };
++        inline for (@typeInfo(Pipelines).@"struct".field_names, 0..) |name, i| {
++            const kind: Kind = @fromBackingInt(@intCast(i));
++            @field(out, name) = try mtl.Pipeline.init(device, lib, kind.symbol(), false);
++            made += 1;
++        }
++        return out;
++    }
++
++    pub fn deinit(p: *Pipelines) void {
++        inline for (@typeInfo(Pipelines).@"struct".field_names) |name| @field(p, name).deinit();
++        p.* = undefined;
++    }
++};
++
++fn bind(e: mtl.ComputeEncoder, refs: []const Ref) void {
++    for (refs, 0..) |r, i| e.setBuffer(r.buf, r.off, i);
++}
++
++pub fn embed(p: *const Pipelines, e: mtl.ComputeEncoder, ids: Ref, table: Ref, weight: Ref, out: Ref, a: EmbedArgs) void {
++    e.setPipeline(p.embed);
++    bind(e, &.{ ids, table, weight });
++    e.setValue(a, 3);
++    e.setBuffer(out.buf, out.off, 4);
++    e.dispatchGroups(mtl.Size.of(a.rows, 1, 1), mtl.Size.of(256, 1, 1));
++}
++
++pub fn norm(p: *const Pipelines, e: mtl.ComputeEncoder, resid: Ref, add_x: Ref, weight: Ref, out: Ref, a: NormArgs) void {
++    e.setPipeline(p.norm);
++    bind(e, &.{ resid, add_x, weight });
++    e.setValue(a, 3);
++    e.setBuffer(out.buf, out.off, 4);
++    e.dispatchGroups(mtl.Size.of(a.rows, 1, 1), mtl.Size.of(256, 1, 1));
++}
++
++pub fn norm16(p: *const Pipelines, e: mtl.ComputeEncoder, x: Ref, weight: Ref, out: Ref, a: NormArgs) void {
++    e.setPipeline(p.norm16);
++    bind(e, &.{ x, weight });
++    e.setValue(a, 2);
++    e.setBuffer(out.buf, out.off, 3);
++    e.dispatchGroups(mtl.Size.of(a.rows, 1, 1), mtl.Size.of(256, 1, 1));
++}
++
++pub fn conv(p: *const Pipelines, e: mtl.ComputeEncoder, x: Ref, dyn: Ref, base: Ref, out: Ref, a: ConvArgs) void {
++    e.setPipeline(p.conv);
++    bind(e, &.{ x, dyn, base });
++    e.setValue(a, 3);
++    e.setBuffer(out.buf, out.off, 4);
++    e.dispatchThreads(mtl.Size.of(a.width, a.rows, 1), mtl.Size.of(256, 1, 1));
++}
++
++pub fn ctxKv(p: *const Pipelines, e: mtl.ComputeEncoder, k_raw: Ref, v_raw: Ref, k_norm: Ref, k_ring: Ref, v_ring: Ref, a: CtxArgs) void {
++    e.setPipeline(p.ctx_kv);
++    bind(e, &.{ k_raw, v_raw, k_norm });
++    e.setValue(a, 3);
++    e.setBuffer(k_ring.buf, k_ring.off, 4);
++    e.setBuffer(v_ring.buf, v_ring.off, 5);
++    e.dispatchGroups(mtl.Size.of(w.kv_heads, a.rows, 1), mtl.Size.of(32, 1, 1));
++}
++
++pub fn blockQkv(p: *const Pipelines, e: mtl.ComputeEncoder, q_raw: Ref, k_raw: Ref, v_raw: Ref, q_norm: Ref, k_norm: Ref, q: Ref, kb: Ref, vb: Ref, a: BlockQkvArgs) void {
++    e.setPipeline(p.block_qkv);
++    bind(e, &.{ q_raw, k_raw, v_raw, q_norm, k_norm });
++    e.setValue(a, 5);
++    e.setBuffer(q.buf, q.off, 6);
++    e.setBuffer(kb.buf, kb.off, 7);
++    e.setBuffer(vb.buf, vb.off, 8);
++    e.dispatchGroups(mtl.Size.of(w.q_heads + w.kv_heads, a.rows, 1), mtl.Size.of(32, 1, 1));
++}
++
++pub fn attendPart(p: *const Pipelines, e: mtl.ComputeEncoder, q: Ref, kb: Ref, vb: Ref, k_ring: Ref, v_ring: Ref, part: Ref, a: AttendArgs) void {
++    e.setPipeline(p.attend);
++    bind(e, &.{ q, kb, vb, k_ring, v_ring });
++    e.setValue(a, 5);
++    e.setBuffer(part.buf, part.off, 6);
++    e.dispatchGroups(mtl.Size.of(w.kv_heads, a.rows, a.chunks), mtl.Size.of(32, 1, 1));
++}
++
++pub fn attendMerge(p: *const Pipelines, e: mtl.ComputeEncoder, part: Ref, out: Ref, a: AttendArgs) void {
++    e.setPipeline(p.attend_merge);
++    e.setBuffer(part.buf, part.off, 0);
++    e.setValue(a, 1);
++    e.setBuffer(out.buf, out.off, 2);
++    e.dispatchGroups(mtl.Size.of(w.q_heads, a.rows, 1), mtl.Size.of(32, 1, 1));
++}
++
++pub fn attend(p: *const Pipelines, e: mtl.ComputeEncoder, q: Ref, kb: Ref, vb: Ref, k_ring: Ref, v_ring: Ref, part: Ref, out: Ref, a: AttendArgs) void {
++    attendPart(p, e, q, kb, vb, k_ring, v_ring, part, a);
++    attendMerge(p, e, part, out, a);
++}
++
++pub fn siluMul(p: *const Pipelines, e: mtl.ComputeEncoder, gate: Ref, up: Ref, out: Ref, count: u32) void {
++    e.setPipeline(p.silu_mul);
++    bind(e, &.{ gate, up });
++    e.setValue(ActArgs{ .count = count }, 2);
++    e.setBuffer(out.buf, out.off, 3);
++    e.dispatchThreads(mtl.Size.of(count, 1, 1), mtl.Size.of(256, 1, 1));
++}
++
++pub fn topk16(p: *const Pipelines, e: mtl.ComputeEncoder, logits: Ref, vals: Ref, ids: Ref, a: TopkArgs) void {
++    e.setPipeline(p.topk16);
++    e.setBuffer(logits.buf, logits.off, 0);
++    e.setValue(a, 1);
++    e.setBuffer(vals.buf, vals.off, 2);
++    e.setBuffer(ids.buf, ids.off, 3);
++    e.dispatchGroups(mtl.Size.of(a.rows, 1, 1), mtl.Size.of(512, 1, 1));
++}
++
++pub fn walk(p: *const Pipelines, e: mtl.ComputeEncoder, vals: Ref, ids: Ref, hid: Ref, pred: Ref, succ: Ref, seq: Ref, a: WalkArgs) void {
++    e.setPipeline(p.walk);
++    bind(e, &.{ vals, ids, hid, pred, succ });
++    e.setValue(a, 5);
++    e.setBuffer(seq.buf, seq.off, 6);
++    e.dispatchGroups(mtl.Size.of(1, 1, 1), mtl.Size.of(w.rank, 1, 1));
++}
++
++test "DFlash2 kernel argument ABI sizes match Metal structs" {
++    try std.testing.expectEqual(@as(usize, 16), @sizeOf(EmbedArgs));
++    try std.testing.expectEqual(@as(usize, 16), @sizeOf(NormArgs));
++    try std.testing.expectEqual(@as(usize, 20), @sizeOf(ConvArgs));
++    try std.testing.expectEqual(@as(usize, 20), @sizeOf(CtxArgs));
++    try std.testing.expectEqual(@as(usize, 20), @sizeOf(BlockQkvArgs));
++    try std.testing.expectEqual(@as(usize, 40), @sizeOf(AttendArgs));
++    try std.testing.expectEqual(@as(usize, 16), @sizeOf(TopkArgs));
++    try std.testing.expectEqual(@as(usize, 20), @sizeOf(WalkArgs));
++}
+diff --git a/zig/src/families/inkling2/metal/dflash2_weights.zig b/zig/src/families/inkling2/metal/dflash2_weights.zig
+new file mode 100644
+index 000000000..1fa9b820e
+--- /dev/null
++++ b/zig/src/families/inkling2/metal/dflash2_weights.zig
+@@ -0,0 +1,263 @@
++//! Validated config.json and model.safetensors loader for incoai/Inkling-2-Mini-DFlash2.
++const std = @import("std");
++const ck = @import("../../../core/checkpoint_metal.zig");
++const Model = @import("model.zig").Model;
++
++pub const hidden: usize = 2304;
++pub const taps_n: usize = 4;
++pub const layers_n: usize = 5;
++pub const q_heads: usize = 32;
++pub const kv_heads: usize = 8;
++pub const head_dim: usize = 128;
++pub const query_width: usize = q_heads * head_dim;
++pub const kv_width: usize = kv_heads * head_dim;
++pub const intermediate: usize = 6912;
++pub const conv_group_size: usize = 16;
++pub const conv_groups: usize = hidden / conv_group_size;
++pub const dyn_width: usize = 4 * conv_groups;
++pub const block_size: usize = 8;
++pub const window_size: usize = 2048;
++pub const ring_size: usize = std.mem.alignForward(usize, window_size + block_size, 128);
++pub const rank: usize = 256;
++pub const top_k: usize = 16;
++pub const padded_vocab: usize = 201024;
++pub const valid_vocab: usize = 200058;
++
++pub const Config = struct {
++    layers: u32 = layers_n,
++    heads: u32 = q_heads,
++    kv_heads: u32 = kv_heads,
++    hidden: u32 = hidden,
++    ffn: u32 = intermediate,
++    window: u32 = window_size,
++    block: u32 = block_size,
++    mask: u32 = 200056,
++    rank: u32 = rank,
++    top_k: u32 = top_k,
++    conv_group_size: u32 = conv_group_size,
++    taps: [taps_n]u32 = .{ 5, 23, 41, 48 },
++    theta: f32 = 10000.0,
++    eps: f32 = 1e-6,
++    softcap: f32 = 30.0,
++
++    pub fn parse(gpa: std.mem.Allocator, text: []const u8) !Config {
++        var doc = try std.json.parseFromSlice(std.json.Value, gpa, text, .{});
++        defer doc.deinit();
++        if (doc.value != .object) return error.BadDFlash2Config;
++        const root = doc.value.object;
++        const arch = root.get("architectures") orelse return error.NotDFlash2Config;
++        if (arch != .array or arch.array.items.len == 0 or arch.array.items[0] != .string or
++            !std.mem.eql(u8, arch.array.items[0].string, "DFlash2DraftModel")) return error.NotDFlash2Config;
++        const dc_val = root.get("dflash_config") orelse return error.BadDFlash2Config;
++        if (dc_val != .object) return error.BadDFlash2Config;
++        const dc = dc_val.object;
++        const readInt = struct {
++            fn of(o: std.json.ObjectMap, k: []const u8) !u32 {
++                const v = o.get(k) orelse return error.BadDFlash2Config;
++                if (v != .integer or v.integer <= 0) return error.BadDFlash2Config;
++                return @intCast(v.integer);
++            }
++            fn flt(o: std.json.ObjectMap, k: []const u8) !f32 {
++                const v = o.get(k) orelse return error.BadDFlash2Config;
++                return switch (v) {
++                    .integer => |i| @floatFromInt(i),
++                    .float => |f| @floatCast(f),
++                    else => error.BadDFlash2Config,
++                };
++            }
++        };
++        const theta: f32 = if (root.get("rope_parameters")) |rp| blk: {
++            if (rp != .object) return error.BadDFlash2Config;
++            break :blk try readInt.flt(rp.object, "rope_theta");
++        } else try readInt.flt(root, "rope_theta");
++        const mode = dc.get("selector_softcap_mode") orelse return error.BadDFlash2Config;
++        if (mode != .string or !std.mem.eql(u8, mode.string, "after_correction")) return error.UnsupportedDFlash2Config;
++        var c: Config = .{
++            .layers = try readInt.of(root, "num_hidden_layers"),
++            .heads = try readInt.of(root, "num_attention_heads"),
++            .kv_heads = try readInt.of(root, "num_key_value_heads"),
++            .hidden = try readInt.of(root, "hidden_size"),
++            .ffn = try readInt.of(root, "intermediate_size"),
++            .window = try readInt.of(root, "sliding_window"),
++            .block = try readInt.of(dc, "block_size"),
++            .mask = try readInt.of(dc, "mask_token_id"),
++            .rank = try readInt.of(dc, "selector_rank"),
++            .top_k = try readInt.of(dc, "selector_top_k"),
++            .conv_group_size = try readInt.of(dc, "conv_group_size"),
++            .theta = theta,
++            .eps = try readInt.flt(root, "rms_norm_eps"),
++            .softcap = try readInt.flt(dc, "final_logit_softcapping"),
++        };
++        const taps_v = dc.get("target_layer_ids") orelse return error.BadDFlash2Config;
++        if (taps_v != .array or taps_v.array.items.len != taps_n) return error.UnsupportedDFlash2Config;
++        for (taps_v.array.items, &c.taps) |item, *dst| {
++            if (item != .integer or item.integer < 0) return error.BadDFlash2Config;
++            dst.* = @intCast(item.integer);
++        }
++        if ((try readInt.of(root, "head_dim")) != head_dim or
++            (try readInt.of(root, "vocab_size")) != padded_vocab or
++            (try readInt.of(dc, "conv_kernel_size")) != 2 or
++            c.layers != layers_n or c.heads != q_heads or c.kv_heads != kv_heads or
++            c.hidden != hidden or c.ffn != intermediate or c.window != window_size or
++            c.block != block_size or c.rank != rank or c.top_k != top_k or
++            c.conv_group_size != conv_group_size or c.mask >= padded_vocab or
++            !std.mem.eql(u32, &c.taps, &.{ 5, 23, 41, 48 }))
++            return error.UnsupportedDFlash2Config;
++        return c;
++    }
++};
++
++/// Returns true when `dir` holds a DFlash2DraftModel config.json rather than a DSpark checkpoint.
++pub fn isDFlash2Dir(gpa: std.mem.Allocator, io: std.Io, dir: []const u8) bool {
++    if (std.mem.endsWith(u8, dir, ".safetensors")) return false;
++    const path = std.fs.path.join(gpa, &.{ dir, "config.json" }) catch return false;
++    defer gpa.free(path);
++    const bytes = std.Io.Dir.cwd().readFileAlloc(io, path, gpa, .limited(1 << 20)) catch return false;
++    defer gpa.free(bytes);
++    var doc = std.json.parseFromSlice(std.json.Value, gpa, bytes, .{}) catch return false;
++    defer doc.deinit();
++    if (doc.value != .object) return false;
++    const arch = doc.value.object.get("architectures") orelse return false;
++    if (arch != .array or arch.array.items.len == 0 or arch.array.items[0] != .string) return false;
++    return std.mem.eql(u8, arch.array.items[0].string, "DFlash2DraftModel");
++}
++
++pub const Conv = struct {
++    base: ck.Tensor,
++    proj: ck.Tensor,
++};
++
++pub const Layer = struct {
++    in_norm: ck.Tensor,
++    post_norm: ck.Tensor,
++    q_norm: ck.Tensor,
++    k_norm: ck.Tensor,
++    q_proj: ck.Tensor,
++    k_proj: ck.Tensor,
++    v_proj: ck.Tensor,
++    o_proj: ck.Tensor,
++    gate_proj: ck.Tensor,
++    up_proj: ck.Tensor,
++    down_proj: ck.Tensor,
++    attn_conv: Conv,
++    mlp_conv: Conv,
++};
++
++pub const Weights = struct {
++    fc: ck.Tensor,
++    hidden_norm: ck.Tensor,
++    norm: ck.Tensor,
++    hidden_proj: ck.Tensor,
++    pred_cb: ck.Tensor,
++    succ_cb: ck.Tensor,
++    layers: [layers_n]Layer,
++};
++
++pub const Loaded = struct {
++    checkpoint: ck.Checkpoint,
++    config: Config,
++    weights: Weights,
++
++    pub fn deinit(l: *Loaded) void {
++        l.checkpoint.deinit();
++        l.* = undefined;
++    }
++
++    pub fn fixedBytes(l: *const Loaded) u64 {
++        return l.checkpoint.residentBytes();
++    }
++};
++
++fn require(t: ck.Tensor, dims: []const usize) !ck.Tensor {
++    if (t.dtype != .bf16 or t.rank != dims.len) return error.DFlash2TensorShape;
++    var count: usize = 1;
++    for (dims, 0..) |d, i| {
++        if (t.shape[i] != d) return error.DFlash2TensorShape;
++        count = std.math.mul(usize, count, d) catch return error.DFlash2TensorShape;
++    }
++    if (t.bytes != count * 2) return error.DFlash2TensorShape;
++    return t;
++}
++
++fn get(c: *const ck.Checkpoint, name: []const u8, dims: []const usize) !ck.Tensor {
++    const t = c.get(name) catch {
++        std.log.err("DFlash2 model.safetensors is missing {s}", .{name});
++        return error.DFlash2MissingTensor;
++    };
++    return require(t, dims);
++}
++
++fn loadLayer(c: *const ck.Checkpoint, i: usize) !Layer {
++    var b: [128]u8 = undefined;
++    const g = struct {
++        fn tensor(cp: *const ck.Checkpoint, buf: []u8, idx: usize, suffix: []const u8, dims: []const usize) !ck.Tensor {
++            const name = try std.fmt.bufPrint(buf, "layers.{d}.{s}", .{ idx, suffix });
++            return get(cp, name, dims);
++        }
++    }.tensor;
++    return .{
++        .in_norm = try g(c, &b, i, "input_layernorm.weight", &.{hidden}),
++        .post_norm = try g(c, &b, i, "post_attention_layernorm.weight", &.{hidden}),
++        .q_norm = try g(c, &b, i, "self_attn.q_norm.weight", &.{head_dim}),
++        .k_norm = try g(c, &b, i, "self_attn.k_norm.weight", &.{head_dim}),
++        .q_proj = try g(c, &b, i, "self_attn.q_proj.weight", &.{ query_width, hidden }),
++        .k_proj = try g(c, &b, i, "self_attn.k_proj.weight", &.{ kv_width, hidden }),
++        .v_proj = try g(c, &b, i, "self_attn.v_proj.weight", &.{ kv_width, hidden }),
++        .o_proj = try g(c, &b, i, "self_attn.o_proj.weight", &.{ hidden, query_width }),
++        .gate_proj = try g(c, &b, i, "mlp.gate_proj.weight", &.{ intermediate, hidden }),
++        .up_proj = try g(c, &b, i, "mlp.up_proj.weight", &.{ intermediate, hidden }),
++        .down_proj = try g(c, &b, i, "mlp.down_proj.weight", &.{ hidden, intermediate }),
++        .attn_conv = .{
++            .base = try g(c, &b, i, "attention_conv.base_kernel", &.{ 2, 2, hidden }),
++            .proj = try g(c, &b, i, "attention_conv.kernel_projection.weight", &.{ dyn_width, hidden }),
++        },
++        .mlp_conv = .{
++            .base = try g(c, &b, i, "mlp_conv.base_kernel", &.{ 2, 2, hidden }),
++            .proj = try g(c, &b, i, "mlp_conv.kernel_projection.weight", &.{ dyn_width, hidden }),
++        },
++    };
++}
++
++pub fn load(gpa: std.mem.Allocator, io: std.Io, target: *const Model, dir: []const u8) !Loaded {
++    const cfg_path = try std.fs.path.join(gpa, &.{ dir, "config.json" });
++    defer gpa.free(cfg_path);
++    const cfg_text = try std.Io.Dir.cwd().readFileAlloc(io, cfg_path, gpa, .limited(1 << 20));
++    defer gpa.free(cfg_text);
++    const config = try Config.parse(gpa, cfg_text);
++    var checkpoint = ck.Checkpoint.init(gpa);
++    errdefer checkpoint.deinit();
++    const path = try std.fmt.allocPrintSentinel(gpa, "{s}/model.safetensors", .{dir}, 0);
++    defer gpa.free(path);
++    checkpoint.addFile(target.device, path, "") catch |err| {
++        std.log.err("DFlash2 cannot open {s}: {s}", .{ path, @errorName(err) });
++        return error.DFlash2MissingFile;
++    };
++    const c = &checkpoint;
++    var layers: [layers_n]Layer = undefined;
++    for (&layers, 0..) |*l, i| l.* = try loadLayer(c, i);
++    const weights: Weights = .{
++        .fc = try get(c, "fc.weight", &.{ hidden, taps_n * hidden }),
++        .hidden_norm = try get(c, "hidden_norm.weight", &.{hidden}),
++        .norm = try get(c, "norm.weight", &.{hidden}),
++        .hidden_proj = try get(c, "candidate_selector.hidden_projection.weight", &.{ rank, hidden }),
++        .pred_cb = try get(c, "candidate_selector.predecessor_codebook", &.{ padded_vocab, rank }),
++        .succ_cb = try get(c, "candidate_selector.successor_codebook", &.{ padded_vocab, rank }),
++        .layers = layers,
++    };
++    return .{ .checkpoint = checkpoint, .config = config, .weights = weights };
++}
++
++test "DFlash2 config parser accepts Inkling-2-Mini-DFlash2 and refuses mismatched shapes" {
++    const valid =
++        \\{"architectures":["DFlash2DraftModel"],"head_dim":128,"hidden_size":2304,"intermediate_size":6912,
++        \\"num_attention_heads":32,"num_hidden_layers":5,"num_key_value_heads":8,"rms_norm_eps":1e-6,
++        \\"rope_parameters":{"rope_theta":10000.0},"sliding_window":2048,"vocab_size":201024,
++        \\"dflash_config":{"block_size":8,"conv_group_size":16,"conv_kernel_size":2,"final_logit_softcapping":30.0,
++        \\"mask_token_id":200056,"selector_rank":256,"selector_softcap_mode":"after_correction",
++        \\"selector_top_k":16,"target_layer_ids":[5,23,41,48]}}
++    ;
++    const c = try Config.parse(std.testing.allocator, valid);
++    try std.testing.expectEqual(@as(u32, 200056), c.mask);
++    try std.testing.expectEqual(@as(u32, 16), c.top_k);
++    try std.testing.expectEqual(@as(f32, 30.0), c.softcap);
++}
+diff --git a/zig/src/families/inkling2/metal/host_test.zig b/zig/src/families/inkling2/metal/host_test.zig
+index 9fc0f712b..0f62377f9 100644
+--- a/zig/src/families/inkling2/metal/host_test.zig
++++ b/zig/src/families/inkling2/metal/host_test.zig
+@@ -14,6 +14,9 @@ test {
+     _ = @import("dspark_state.zig");
+     _ = @import("dspark.zig");
+     _ = @import("draw.zig");
++    _ = @import("dflash2_weights.zig");
++    _ = @import("dflash2_kernels.zig");
++    _ = @import("dflash2.zig");
+     _ = @import("dense_test.zig");
+     _ = @import("backend.zig");
+     _ = @import("images.zig");
+diff --git a/zig/src/tensorfold.zig b/zig/src/tensorfold.zig
+index ebc63b07e..3d4f7ff1a 100644
+--- a/zig/src/tensorfold.zig
++++ b/zig/src/tensorfold.zig
+@@ -38,6 +38,7 @@ pub const lanes = @import("lanes");
+ pub const inkling2_native = @import("inkling2_native.zig");
+ pub const inkling2_metal_host = @import("families/inkling2/metal/metal.zig");
+ pub const inkling2_dspark_host = @import("families/inkling2/metal/dspark_kernels.zig");
++pub const inkling2_dflash2_host = @import("families/inkling2/metal/dflash2_kernels.zig");
+ pub const segments = @import("core/segments.zig");
+ pub const prompt_tail = @import("core/prompt_tail.zig");
+ pub const row_projection = @import("core/row_projection.zig");
+diff --git a/zig/tests/contract/metal_inkling2_controls_host.zig b/zig/tests/contract/metal_inkling2_controls_host.zig
+index af3272c49..68e064ce8 100644
+--- a/zig/tests/contract/metal_inkling2_controls_host.zig
++++ b/zig/tests/contract/metal_inkling2_controls_host.zig
+@@ -12,4 +12,5 @@ test {
+     _ = @import("metal_inkling2_dspark_controls.zig");
+     _ = @import("metal_inkling2_split_controls.zig");
+     _ = @import("metal_inkling2_vision_controls.zig");
++    _ = @import("metal_inkling2_dflash2_controls.zig");
+ }
+diff --git a/zig/tests/contract/metal_inkling2_dflash2.zig b/zig/tests/contract/metal_inkling2_dflash2.zig
+new file mode 100644
+index 000000000..1e595a868
+--- /dev/null
++++ b/zig/tests/contract/metal_inkling2_dflash2.zig
+@@ -0,0 +1,477 @@
++//! Mini DFlash 2's eleven real Metal launches with guarded buffers, FP64/FP32 references and red controls.
++const std = @import("std");
++const mtl = @import("metal");
++const controls = @import("metal_inkling2_dflash2_controls.zig");
++const ref = @import("metal_inkling2_dflash2_ref.zig");
++const contract = @import("contract");
++const c = contract.spec;
++const g = contract.gates;
++const rig_ = @import("rig.zig");
++const host = @import("tensorfold").inkling2_dflash2_host;
++const sources = @import("inkling2_metal");
++
++const H = ref.H;
++const Q = ref.Q;
++const KV = ref.KV;
++const QH = ref.QH;
++const KVH = ref.KVH;
++const D = ref.D;
++const G = ref.G;
++const INTER = ref.INTER;
++const RANK = ref.RANK;
++const GROUPS = ref.GROUPS;
++const BLOCK = ref.BLOCK;
++const PART = ref.PART;
++const EPS = ref.EPS;
++const THETA = ref.THETA;
++
++fn depth(s: c.Shape) usize {
++    return s.k + 16;
++}
++fn rounded(values: []f32) void {
++    for (values) |*v| v.* = ref.bf(v.*);
++}
++
++pub const Probe = struct {
++    a: std.mem.Allocator,
++    arena: std.heap.ArenaAllocator,
++    rig: rig_.Rig,
++    kind: host.Kind,
++    pipes: host.Pipelines,
++    shape: c.Shape = undefined,
++    fill: g.Fill = .random,
++    served: [6]c.Shape = undefined,
++    served_len: usize = 0,
++    f: [6][]f32 = @splat(&.{}),
++    u: [3][]u32 = @splat(&.{}),
++    refs: [6]rig_.Ref = undefined,
++    outs: [3]rig_.Ref = undefined,
++    attend_args: host.AttendArgs = undefined,
++
++    pub fn init(a: std.mem.Allocator, device: mtl.Device, queue: mtl.Queue, kind: host.Kind) !Probe {
++        return initSource(a, device, queue, kind, sources.inkling2_dflash2);
++    }
++    pub fn initSource(a: std.mem.Allocator, device: mtl.Device, queue: mtl.Queue, kind: host.Kind, text: []const u8) !Probe {
++        var self: Probe = .{ .a = a, .arena = .init(a), .rig = .{ .a = a, .device = device, .queue = queue }, .kind = kind, .pipes = try host.Pipelines.loadSource(device, text) };
++        switch (kind) {
++            .embed => self.setServed(&.{ .{ .rows = BLOCK, .n = H, .k = 0 }, .{ .rows = BLOCK, .n = H, .k = 1 } }),
++            .norm => self.setServed(&.{ .{ .rows = BLOCK, .n = H, .k = 0 }, .{ .rows = BLOCK, .n = H, .k = 1 } }),
++            .norm16 => self.setServed(&.{ .{ .rows = 5, .n = H, .k = 0 }, .{ .rows = 1, .n = H, .k = 0 }, .{ .rows = BLOCK, .n = H, .k = 0 } }),
++            .conv => self.setServed(&.{ .{ .rows = BLOCK, .n = H, .k = 0 }, .{ .rows = BLOCK, .n = H, .k = 1 } }),
++            .ctx_kv => self.setServed(&.{ .{ .rows = 5, .n = KV, .k = 17 }, .{ .rows = 1, .n = KV, .k = 31 }, .{ .rows = BLOCK, .n = KV, .k = 67 } }),
++            .block_qkv => self.setServed(&.{ .{ .rows = BLOCK, .n = Q, .k = 17 }, .{ .rows = BLOCK, .n = Q, .k = 67 } }),
++            .attend => self.setServed(&.{ .{ .rows = BLOCK, .n = 0, .k = 0 }, .{ .rows = BLOCK, .n = 17, .k = 0 }, .{ .rows = BLOCK, .n = 140, .k = 1 } }),
++            .attend_merge => self.setServed(&.{ .{ .rows = BLOCK, .n = 1, .k = 0 }, .{ .rows = BLOCK, .n = 2, .k = 0 }, .{ .rows = BLOCK, .n = 3, .k = 0 } }),
++            .silu_mul => self.setServed(&.{.{ .rows = BLOCK, .n = INTER, .k = 0 }}),
++            .topk16 => self.setServed(&.{ .{ .rows = 7, .n = 64, .k = 0 }, .{ .rows = 7, .n = 4096, .k = 0 }, .{ .rows = 7, .n = 256, .k = 1 } }),
++            .walk => self.setServed(&.{ .{ .rows = 7, .n = 64, .k = 1 }, .{ .rows = 7, .n = 64, .k = 0 } }),
++        }
++        return self;
++    }
++    fn setServed(self: *Probe, shapes: []const c.Shape) void {
++        @memcpy(self.served[0..shapes.len], shapes);
++        self.served_len = shapes.len;
++    }
++    pub fn deinit(self: *Probe) void {
++        self.rig.deinit();
++        self.arena.deinit();
++        self.pipes.deinit();
++    }
++
++    const vt = g.hooks(Probe);
++    pub fn kernel(self: *Probe) g.Kernel {
++        return .{ .ctx = self, .vt = &vt, .spec = .{
++            .name = self.kind.label(),
++            .accum = .none,
++            .depth = depth,
++            .ops = 0,
++            .mids = 0,
++            .out = switch (self.kind) {
++                .embed, .attend, .topk16, .walk => .f32,
++                else => .bf16,
++            },
++            .served = self.served[0..self.served_len],
++            .sums = .{ .f16 = 0, .bf16 = 0, .why = "explicit serial FP32 reference and required BF16/guard invariants checked directly" },
++        } };
++    }
++    pub fn count(self: *Probe) usize {
++        return switch (self.kind) {
++            .embed => self.shape.rows * H,
++            .norm => 2 * self.shape.rows * H,
++            .norm16, .conv => self.shape.rows * H,
++            .ctx_kv => 2 * self.shape.rows * KV,
++            .block_qkv => self.shape.rows * (Q + 2 * KV),
++            .attend => self.shape.rows * QH * self.attend_args.chunks * PART,
++            .attend_merge => self.shape.rows * Q,
++            .silu_mul => self.shape.rows * INTER,
++            .topk16 => 2 * self.shape.rows * host.top_k,
++            .walk => 1 + self.shape.rows,
++        };
++    }
++
++    fn floats(self: *Probe, n: usize, rng: std.Random) ![]f32 {
++        const values = try self.arena.allocator().alloc(f32, n);
++        for (values) |*v| v.* = rng.float(f32) * 0.5 - 0.25;
++        return values;
++    }
++    fn inputF(self: *Probe, values: []const f32, is_bf: bool) !rig_.Ref {
++        if (!is_bf) return self.rig.input(std.mem.sliceAsBytes(values));
++        const bits = try self.arena.allocator().alloc(u16, values.len);
++        for (bits, values) |*b, v| b.* = c.toBf16(v);
++        return self.rig.input(std.mem.sliceAsBytes(bits));
++    }
++    fn output(self: *Probe, slot: usize, elements: usize, elem: c.Elem) !void {
++        self.outs[slot] = try self.rig.output(elements * c.size(elem));
++    }
++
++    pub fn prepare(self: *Probe, shape: c.Shape, fill: g.Fill, seed: u64) !bool {
++        var admitted = false;
++        for (self.served[0..self.served_len]) |served| if (std.meta.eql(shape, served)) {
++            admitted = true;
++            break;
++        };
++        if (!admitted) return false;
++        self.rig.reset();
++        _ = self.arena.reset(.retain_capacity);
++        self.shape = shape;
++        self.fill = fill;
++        self.f = @splat(&.{});
++        self.u = @splat(&.{});
++        var prng = std.Random.DefaultPrng.init(seed);
++        const rng = prng.random();
++        const nf = fill == .nonfinite;
++        const rows = shape.rows;
++
++        switch (self.kind) {
++            .embed => {
++                const vocab: usize = 32;
++                self.u[0] = try self.arena.allocator().alloc(u32, rows);
++                for (self.u[0], 0..) |*id, i| id.* = @intCast((i * 5 + 3) % vocab);
++                self.f[0] = try self.floats(vocab * H, rng);
++                self.f[1] = try self.floats(H, rng);
++                for (self.f[1]) |*w| w.* = 1.5 + w.*;
++                if (nf) self.f[0][self.u[0][0] * H] = std.math.nan(f32);
++                rounded(self.f[0]);
++                rounded(self.f[1]);
++                self.refs[0] = try self.rig.input(std.mem.sliceAsBytes(self.u[0]));
++                self.refs[1] = try self.inputF(self.f[0], true);
++                self.refs[2] = try self.inputF(self.f[1], true);
++                try self.output(0, rows * H, .f32);
++            },
++            .norm => {
++                self.f[0] = try self.floats(rows * H, rng);
++                self.f[1] = try self.floats(rows * H, rng);
++                self.f[2] = try self.floats(H, rng);
++                for (self.f[2]) |*w| w.* = 1.25 + w.*;
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                rounded(self.f[1]);
++                rounded(self.f[2]);
++                try self.output(0, rows * H, .f32);
++                @memcpy(self.rig.bytes(self.outs[0], rows * H * 4), std.mem.sliceAsBytes(self.f[0]));
++                self.refs[0] = try self.inputF(self.f[1], true);
++                self.refs[1] = try self.inputF(self.f[2], true);
++                try self.output(1, rows * H, .bf16);
++            },
++            .norm16 => {
++                self.f[0] = try self.floats(rows * H, rng);
++                self.f[1] = try self.floats(H, rng);
++                for (self.f[1]) |*w| w.* = 1.5 + w.*;
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                rounded(self.f[0]);
++                rounded(self.f[1]);
++                self.refs[0] = try self.inputF(self.f[0], true);
++                self.refs[1] = try self.inputF(self.f[1], true);
++                try self.output(0, rows * H, .bf16);
++            },
++            .conv => {
++                self.f[0] = try self.floats(rows * H, rng);
++                self.f[1] = try self.floats(rows * 4 * GROUPS, rng);
++                self.f[2] = try self.floats(4 * H, rng);
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                for (self.f[0..3]) |v| rounded(v);
++                for (0..3) |j| self.refs[j] = try self.inputF(self.f[j], true);
++                try self.output(0, rows * H, .bf16);
++            },
++            .ctx_kv => {
++                self.f[0] = try self.floats(rows * KV, rng);
++                self.f[1] = try self.floats(rows * KV, rng);
++                self.f[2] = try self.floats(D, rng);
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                for (self.f[0..3]) |v| rounded(v);
++                for (0..3) |j| self.refs[j] = try self.inputF(self.f[j], true);
++                try self.output(0, rows * KV, .bf16);
++                try self.output(1, rows * KV, .bf16);
++            },
++            .block_qkv => {
++                const sizes = [_]usize{ rows * Q, rows * KV, rows * KV, D, D };
++                for (sizes, 0..) |n, j| {
++                    self.f[j] = try self.floats(n, rng);
++                    rounded(self.f[j]);
++                }
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                for (0..5) |j| self.refs[j] = try self.inputF(self.f[j], true);
++                try self.output(0, rows * Q, .bf16);
++                try self.output(1, rows * KV, .bf16);
++                try self.output(2, rows * KV, .bf16);
++            },
++            .attend => {
++                const retained = shape.n;
++                const ring = @max(retained, 1);
++                const keys = retained + rows;
++                const chunks = (keys + 127) / 128;
++                self.attend_args = .{
++                    .rows = @intCast(rows),
++                    .anchor = @intCast(retained + 20),
++                    .from = 20,
++                    .lo = 20,
++                    .retained = @intCast(retained),
++                    .keys = @intCast(keys),
++                    .window = if (shape.k != 0) 64 else 2048,
++                    .ring = @intCast(ring),
++                    .chunks = @intCast(chunks),
++                    .scale = 1.0 / @sqrt(@as(f32, D)),
++                };
++                const sizes = [_]usize{ rows * Q, rows * KV, rows * KV, ring * KV, ring * KV };
++                for (sizes, 0..) |n, j| {
++                    self.f[j] = try self.floats(n, rng);
++                    rounded(self.f[j]);
++                }
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                for (0..5) |j| self.refs[j] = try self.inputF(self.f[j], true);
++                try self.output(0, rows * QH * chunks * PART, .f32);
++            },
++            .attend_merge => {
++                const chunks = shape.n;
++                self.attend_args = .{ .rows = @intCast(rows), .anchor = 0, .from = 0, .lo = 0, .retained = 0, .keys = @intCast(chunks * 128), .window = 2048, .ring = 1, .chunks = @intCast(chunks), .scale = 1.0 };
++                self.f[0] = try self.floats(rows * QH * chunks * PART, rng);
++                for (0..rows) |r| for (0..KVH) |kh| for (0..chunks) |ch| for (0..G) |gg| {
++                    const base = (((r * KVH + kh) * chunks + ch) * G + gg) * PART;
++                    self.f[0][base + D] = if (chunks >= 3 and ch == 1 and r == 0 and kh == 0 and gg == 0)
++                        -std.math.inf(f32)
++                    else
++                        @as(f32, @floatFromInt(ch)) * 1.5 - 0.5 + rng.float(f32) * 0.25;
++                    self.f[0][base + D + 1] = if (self.f[0][base + D] == -std.math.inf(f32)) 0.0 else 0.5 + rng.float(f32) * 2.0;
++                };
++                if (nf) self.f[0][D] = std.math.nan(f32);
++                self.refs[0] = try self.inputF(self.f[0], false);
++                try self.output(0, rows * Q, .bf16);
++            },
++            .silu_mul => {
++                self.f[0] = try self.floats(rows * INTER, rng);
++                self.f[1] = try self.floats(rows * INTER, rng);
++                for (self.f[0]) |*v| v.* *= 8.0;
++                if (nf) self.f[0][0] = std.math.nan(f32);
++                rounded(self.f[0]);
++                rounded(self.f[1]);
++                self.refs[0] = try self.inputF(self.f[0], true);
++                self.refs[1] = try self.inputF(self.f[1], true);
++                try self.output(0, rows * INTER, .bf16);
++            },
++            .topk16 => {
++                const vocab = shape.n;
++                const stride = vocab + 16;
++                self.f[0] = try self.floats(rows * stride, rng);
++                for (self.f[0]) |*v| v.* = rng.float(f32) * 40.0 - 20.0;
++                if (shape.k != 0) {
++                    // Plant > 64 ties at the cut boundary to exercise the overflow tie-break path.
++                    for (0..rows) |r| {
++                        for (0..vocab) |tok| self.f[0][r * stride + tok] = 1.0;
++                        self.f[0][r * stride + 5] = 5.0;
++                        self.f[0][r * stride + 9] = 4.0;
++                    }
++                }
++                if (nf) {
++                    // Plant NaN, +inf, and -inf in separate rows while leaving other rows finite.
++                    self.f[0][0 * stride + 3] = std.math.nan(f32);
++                    self.f[0][1 * stride + 7] = std.math.inf(f32);
++                    self.f[0][2 * stride + 11] = -std.math.inf(f32);
++                }
++                rounded(self.f[0]);
++                self.refs[0] = try self.inputF(self.f[0], true);
++                try self.output(0, rows * host.top_k, .f32);
++                try self.output(1, rows * host.top_k, .f32);
++            },
++            .walk => {
++                const slots = rows;
++                const vocab = shape.n;
++                const top: usize = host.top_k;
++                self.f[0] = try self.floats(slots * top, rng);
++                self.u[0] = try self.arena.allocator().alloc(u32, slots * top);
++                self.f[1] = try self.floats(slots * RANK, rng);
++                self.f[2] = try self.floats(vocab * RANK, rng);
++                self.f[3] = try self.floats(vocab * RANK, rng);
++                for (self.f[0]) |*v| v.* = 0.05 * v.*;
++                for (self.f[1]) |*v| v.* = 1.0 + v.*;
++                for (self.f[2]) |*v| v.* = 0.5 * v.*;
++                for (self.f[3]) |*v| v.* = 0.5 * v.*;
++                for (0..slots) |e| {
++                    for (0..top) |ci| self.u[0][e * top + ci] = @intCast((e * 7 + ci * 3 + 1) % vocab);
++                }
++                // Bias transition scores toward candidate 5 so dropping the codebook term flips the choice.
++                const seed_tok: u32 = 2;
++                const target_cand = self.u[0][5];
++                for (0..RANK) |d| {
++                    self.f[1][d] = 1.0;
++                    self.f[2][seed_tok * RANK + d] = 0.5;
++                    self.f[3][target_cand * RANK + d] = 1.0;
++                }
++                self.f[0][0] = 2.0;
++                self.f[0][5] = 0.0;
++                for (self.f[1..4]) |v| rounded(v);
++                if (nf) {
++                    // Slot 0 mimics a rejected non-finite topk16 row so slot 1 must guard prev before reading A.
++                    for (0..top) |ci| {
++                        self.u[0][ci] = 0xffffffff;
++                        self.f[0][ci] = -std.math.inf(f32);
++                    }
++                }
++                self.refs[0] = try self.inputF(self.f[0], false);
++                self.refs[1] = try self.rig.input(std.mem.sliceAsBytes(self.u[0]));
++                self.refs[2] = try self.inputF(self.f[1], true);
++                self.refs[3] = try self.inputF(self.f[2], true);
++                self.refs[4] = try self.inputF(self.f[3], true);
++                try self.output(0, 1 + slots, .f32);
++                const seq_init = try self.arena.allocator().alloc(u32, 1 + slots);
++                seq_init[0] = seed_tok;
++                for (seq_init[1..]) |*v| v.* = 0x12345678;
++                @memcpy(self.rig.bytes(self.outs[0], (1 + slots) * 4), std.mem.sliceAsBytes(seq_init));
++            },
++        }
++        return true;
++    }
++
++    fn hostRef(r: rig_.Ref) host.Ref {
++        return .{ .buf = r.buf, .off = r.off };
++    }
++    pub fn run(self: *Probe) !void {
++        const pass = self.rig.begin();
++        const e = pass.e;
++        const R = self.refs;
++        const O = self.outs;
++        const p = &self.pipes;
++        switch (self.kind) {
++            .embed => host.embed(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(R[2]), hostRef(O[0]), .{ .rows = @intCast(self.shape.rows), .width = H, .use_norm = @intCast(self.shape.k), .eps = EPS }),
++            .norm => host.norm(p, e, hostRef(O[0]), hostRef(R[0]), hostRef(R[1]), hostRef(O[1]), .{ .rows = @intCast(self.shape.rows), .width = H, .eps = EPS, .add = @intCast(self.shape.k) }),
++            .norm16 => host.norm16(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(O[0]), .{ .rows = @intCast(self.shape.rows), .width = H, .eps = EPS, .add = 0 }),
++            .conv => host.conv(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(R[2]), hostRef(O[0]), .{ .rows = @intCast(self.shape.rows), .width = H, .block = BLOCK, .groups = GROUPS, .side = @intCast(self.shape.k) }),
++            .ctx_kv => host.ctxKv(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(R[2]), hostRef(O[0]), hostRef(O[1]), .{ .rows = @intCast(self.shape.rows), .pos0 = @intCast(self.shape.k), .ring = @intCast(self.shape.rows), .eps = EPS, .theta = THETA }),
++            .block_qkv => host.blockQkv(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(R[2]), hostRef(R[3]), hostRef(R[4]), hostRef(O[0]), hostRef(O[1]), hostRef(O[2]), .{ .rows = @intCast(self.shape.rows), .block = BLOCK, .pos0 = @intCast(self.shape.k), .eps = EPS, .theta = THETA }),
++            .attend => host.attendPart(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(R[2]), hostRef(R[3]), hostRef(R[4]), hostRef(O[0]), self.attend_args),
++            .attend_merge => host.attendMerge(p, e, hostRef(R[0]), hostRef(O[0]), self.attend_args),
++            .silu_mul => host.siluMul(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(O[0]), @intCast(self.shape.rows * INTER)),
++            .topk16 => host.topk16(p, e, hostRef(R[0]), hostRef(O[0]), hostRef(O[1]), .{ .rows = @intCast(self.shape.rows), .vocab = @intCast(self.shape.n), .k = host.top_k, .stride = @intCast(self.shape.n + 16) }),
++            .walk => host.walk(p, e, hostRef(R[0]), hostRef(R[1]), hostRef(R[2]), hostRef(R[3]), hostRef(R[4]), hostRef(O[0]), .{ .slots = @intCast(self.shape.rows), .rank = RANK, .top = host.top_k, .vocab = @intCast(self.shape.n), .softcap = if (self.shape.k != 0) 30.0 else 0.0 }),
++        }
++        try self.rig.finish(pass);
++    }
++
++    pub fn reference(self: *Probe, want: []f64, mag: []f64) !void {
++        ref.computeReference(self.kind, self.shape, self.attend_args, self.f, self.u, want, mag);
++    }
++
++    pub fn check(self: *Probe, gate: g.Gate) !?[]const u8 {
++        if (gate != .shapes and gate != .nonfinite) return "numeric hooks must be used";
++        const bytes = try self.rig.outputBytes();
++        if (self.kind == .topk16) return ref.checkTopk16(self.a, self.shape, self.f[0], bytes);
++        if (self.kind == .walk) return ref.checkWalk(self.shape, self.f, self.u[0], bytes);
++        const want = try self.a.alloc(f64, self.count());
++        defer self.a.free(want);
++        const mag = try self.a.alloc(f64, self.count());
++        defer self.a.free(mag);
++        try self.reference(want, mag);
++        return ref.checkNumeric(self.kind, self.shape, want, bytes);
++    }
++};
++
++fn controlKind(ctl: controls.Control) host.Kind {
++    return switch (ctl) {
++        .embed => .embed,
++        .norm => .norm,
++        .norm16 => .norm16,
++        .conv => .conv,
++        .ctx_kv => .ctx_kv,
++        .block_qkv => .block_qkv,
++        .attend => .attend,
++        .attend_merge => .attend_merge,
++        .silu_mul => .silu_mul,
++        .topk16, .topk16_nonfinite => .topk16,
++        .walk, .walk_nonfinite => .walk,
++    };
++}
++
++pub const Suite = struct {
++    a: std.mem.Allocator,
++    device: mtl.Device,
++    queue: mtl.Queue,
++    kernels: *std.ArrayList(g.Kernel),
++    probes: std.ArrayList(*Probe) = .empty,
++
++    fn addKernel(s: *Suite, kind: host.Kind, only: ?[]const u8) !void {
++        const name = kind.label();
++        if (only) |text| if (std.mem.indexOf(u8, name, text) == null) return;
++        const probe = try s.a.create(Probe);
++        errdefer s.a.destroy(probe);
++        probe.* = try Probe.init(s.a, s.device, s.queue, kind);
++        errdefer probe.deinit();
++        try controls.publishProbe(Probe, s.a, &s.probes, s.kernels, probe, probe.kernel());
++    }
++
++    fn addControl(s: *Suite, ctl: controls.Control, only: ?[]const u8) !void {
++        const name = controls.name(ctl);
++        if (only) |text| if (std.mem.indexOf(u8, name, text) == null) return;
++        const probe = try s.a.create(Probe);
++        errdefer s.a.destroy(probe);
++        const text = try controls.source(s.a, sources.inkling2_dflash2, ctl);
++        defer s.a.free(text);
++        probe.* = try Probe.initSource(s.a, s.device, s.queue, controlKind(ctl), text);
++        errdefer probe.deinit();
++        var k = probe.kernel();
++        k.spec.name = name;
++        k.control = ctl.gate();
++        try controls.publishProbe(Probe, s.a, &s.probes, s.kernels, probe, k);
++    }
++
++    pub fn collect(s: *Suite, only: ?[]const u8) !void {
++        for (std.enums.values(host.Kind)) |kind| try s.addKernel(kind, only);
++        for (std.enums.values(controls.Control)) |ctl| try s.addControl(ctl, only);
++    }
++
++    pub fn deinit(s: *Suite) void {
++        for (s.probes.items) |probe| {
++            probe.deinit();
++            s.a.destroy(probe);
++        }
++        s.probes.deinit(s.a);
++    }
++};
++
++test "DFlash2 Suite addKernel and addControl keep probe ownership transactional on OOM" {
++    const device = mtl.Device.init() catch return error.SkipZigTest;
++    defer device.deinit();
++    const queue = try device.queue();
++    defer queue.deinit();
++    const base = std.testing.allocator;
++    for ([_]bool{ false, true }) |is_control| {
++        var fail_at: usize = 0;
++        var saw_kernel_oom = false;
++        while (fail_at < 16) : (fail_at += 1) {
++            var kernels: std.ArrayList(g.Kernel) = .empty;
++            defer kernels.deinit(base);
++            var failing = std.testing.FailingAllocator.init(base, .{ .fail_index = fail_at });
++            var suite: Suite = .{ .a = failing.allocator(), .device = device, .queue = queue, .kernels = &kernels };
++            defer suite.deinit();
++            const res = if (is_control) suite.addControl(.walk_nonfinite, null) else suite.addKernel(.embed, null);
++            if (res) |_| {
++                try std.testing.expectEqual(@as(usize, 1), suite.probes.items.len);
++                try std.testing.expectEqual(@as(usize, 1), kernels.items.len);
++                break;
++            } else |err| {
++                try std.testing.expectEqual(error.OutOfMemory, err);
++                try std.testing.expectEqual(@as(usize, 0), suite.probes.items.len);
++                try std.testing.expectEqual(@as(usize, 0), kernels.items.len);
++                if (suite.probes.capacity > 0) saw_kernel_oom = true;
++            }
++        }
++        try std.testing.expect(saw_kernel_oom);
++    }
++}
+diff --git a/zig/tests/contract/metal_inkling2_dflash2_controls.zig b/zig/tests/contract/metal_inkling2_dflash2_controls.zig
+new file mode 100644
+index 000000000..940f7d690
+--- /dev/null
++++ b/zig/tests/contract/metal_inkling2_dflash2_controls.zig
+@@ -0,0 +1,172 @@
++//! Host-checkable arithmetic and guard mutations for every Mini DFlash 2 Metal kernel.
++const std = @import("std");
++const g = @import("contract").gates;
++
++pub const Control = enum {
++    embed,
++    norm,
++    norm16,
++    conv,
++    ctx_kv,
++    block_qkv,
++    attend,
++    attend_merge,
++    silu_mul,
++    topk16,
++    topk16_nonfinite,
++    walk,
++    walk_nonfinite,
++
++    pub fn gate(ctl: Control) g.Gate {
++        return switch (ctl) {
++            .topk16_nonfinite, .walk_nonfinite => .nonfinite,
++            else => .shapes,
++        };
++    }
++};
++
++const Edit = struct { from: []const u8, to: []const u8 };
++
++fn edit(ctl: Control) Edit {
++    return switch (ctl) {
++        .embed => .{
++            .from = "for (uint i = t; i < a.width; i += 256) dst[i] = float(bfloat(float(src[i]) * inv * float(weight[i])));",
++            .to = "for (uint i = t; i < a.width; i += 256) dst[i] = float(bfloat(float(src[i]) * inv));",
++        },
++        .norm => .{
++            .from = "    if (a.add) {\n      v = float(bfloat(v + float(x[i])));\n      r[i] = v;\n    }",
++            .to = "    if (a.add) {\n      v = float(bfloat(v));\n      r[i] = v;\n    }",
++        },
++        .norm16 => .{
++            .from = "for (uint i = t; i < a.width; i += 256) y[i] = bfloat(float(w[i]) * float(bfloat(float(x[i]) * inv)));",
++            .to = "for (uint i = t; i < a.width; i += 256) y[i] = bfloat(float(bfloat(float(x[i]) * inv)));",
++        },
++        .conv => .{
++            .from = "if (r % a.block >= 1) y = float(bfloat(y + float(bfloat(c1 * float(X[(size_t)(r - 1) * a.width + ch])))));",
++            .to = "if (false) y = float(bfloat(y + float(bfloat(c1 * float(X[(size_t)(r - 1) * a.width + ch])))));",
++        },
++        .ctx_kv => .{
++            .from = "const uint pos = a.pos0 + row;",
++            .to = "const uint pos = a.pos0;",
++        },
++        .block_qkv => .{
++            .from = "const uint pos = a.pos0 + (row % a.block);",
++            .to = "const uint pos = a.pos0;",
++        },
++        .attend => .{
++            .from = "const uint row_lo = max(a.from, reach > a.window ? reach - a.window : 0u);",
++            .to = "const uint row_lo = a.from;",
++        },
++        .attend_merge => .{
++            .from = "const float w = precise::exp(p[DF2_D] - maximum);",
++            .to = "const float w = 1.0f;",
++        },
++        .silu_mul => .{
++            .from = "out[i] = bfloat(float(bfloat(g * s)) * float(up[i]));",
++            .to = "out[i] = bfloat(g * float(up[i]));",
++        },
++        .topk16 => .{
++            .from = "return key > ok || (key == ok && id < oid);",
++            .to = "return key < ok || (key == ok && id < oid);",
++        },
++        .topk16_nonfinite => .{
++            .from = "if ((raw & 0x7f80u) == 0x7f80u) {",
++            .to = "if (false && (raw & 0x7f80u) == 0x7f80u) {",
++        },
++        .walk => .{
++            .from = "for (uint k = 0; k < a.rank / 32; ++k) s += part[k][c];",
++            .to = "for (uint k = 0; k < 0; ++k) s += part[k][c];",
++        },
++        .walk_nonfinite => .{
++            .from = "    if (prev >= a.vocab) {\n      if (t == 0) seq[1 + e] = 0xffffffffu;\n      continue;\n    }",
++            .to = "    if (prev >= a.vocab) {\n      prev = 0u;\n    }",
++        },
++    };
++}
++
++pub fn name(ctl: Control) []const u8 {
++    return switch (ctl) {
++        inline else => |k| "control: metal inkling2 dflash2 " ++ @tagName(k),
++    };
++}
++
++pub fn source(a: std.mem.Allocator, production: []const u8, ctl: Control) ![]u8 {
++    const e = edit(ctl);
++    if (std.mem.count(u8, production, e.from) != 1) return error.ControlEditMissing;
++    return std.mem.replaceOwned(u8, a, production, e.from, e.to);
++}
++
++/// Reserves capacity in both lists before committing ownership so kernel-list OOM never double-frees.
++pub fn publishProbe(comptime P: type, a: std.mem.Allocator, probes: *std.ArrayList(*P), kernels: *std.ArrayList(g.Kernel), probe: *P, k: g.Kernel) !void {
++    try probes.ensureUnusedCapacity(a, 1);
++    try kernels.ensureUnusedCapacity(a, 1);
++    probes.appendAssumeCapacity(probe);
++    kernels.appendAssumeCapacity(k);
++}
++
++test "publishProbe rolls back cleanly on kernel-list OOM for ordinary and control probes" {
++    const Fake = struct {
++        deinits: *usize,
++        pub fn deinit(self: *@This()) void {
++            self.deinits.* += 1;
++        }
++        pub fn kernel(self: *@This(), ctl: ?g.Gate) g.Kernel {
++            return .{ .ctx = self, .vt = undefined, .spec = .{ .name = "fake", .accum = .none, .depth = undefined, .ops = 0, .mids = 0, .out = .f32, .served = &.{}, .sums = .{ .f16 = 0, .bf16 = 0, .why = "" } }, .control = ctl };
++        }
++    };
++    const Helper = struct {
++        fn add(base_a: std.mem.Allocator, pub_a: std.mem.Allocator, probes: *std.ArrayList(*Fake), kernels: *std.ArrayList(g.Kernel), deinits: *usize, ctl: ?g.Gate) !void {
++            const p = try base_a.create(Fake);
++            errdefer base_a.destroy(p);
++            p.* = .{ .deinits = deinits };
++            errdefer p.deinit();
++            try publishProbe(Fake, pub_a, probes, kernels, p, p.kernel(ctl));
++        }
++    };
++    const base = std.testing.allocator;
++    for ([_]?g.Gate{ null, .shapes, .nonfinite }) |ctl| {
++        var deinits: usize = 0;
++        var probes: std.ArrayList(*Fake) = .empty;
++        defer {
++            for (probes.items) |p| {
++                p.deinit();
++                base.destroy(p);
++            }
++            probes.deinit(base);
++        }
++        var kernels: std.ArrayList(g.Kernel) = .empty;
++        defer kernels.deinit(base);
++        // Pre-reserve probes so only kernels.ensureUnusedCapacity allocates and fails on OOM.
++        try probes.ensureTotalCapacity(base, 1);
++        var failing = std.testing.FailingAllocator.init(base, .{ .fail_index = 0 });
++        try std.testing.expectError(error.OutOfMemory, Helper.add(base, failing.allocator(), &probes, &kernels, &deinits, ctl));
++        try std.testing.expectEqual(@as(usize, 1), deinits);
++        try std.testing.expectEqual(@as(usize, 0), probes.items.len);
++        try std.testing.expectEqual(@as(usize, 0), kernels.items.len);
++    }
++}
++
++test "every DFlash2 control applies once and only mutates its arithmetic or guard anchor" {
++    const production = @import("inkling2_metal").inkling2_dflash2;
++    const a = std.testing.allocator;
++    for (std.enums.values(Control)) |ctl| {
++        const e = edit(ctl);
++        try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, production, e.from));
++        const changed = try source(a, production, ctl);
++        defer a.free(changed);
++        const at = std.mem.indexOf(u8, production, e.from).?;
++        try std.testing.expectEqualStrings(production[0..at], changed[0..at]);
++        try std.testing.expectEqualStrings(e.to, changed[at..][0..e.to.len]);
++        try std.testing.expectEqualStrings(production[at + e.from.len ..], changed[at + e.to.len ..]);
++        try std.testing.expectError(error.ControlEditMissing, source(a, changed, ctl));
++        try std.testing.expectError(error.ControlEditMissing, source(a, "", ctl));
++    }
++}
++
++test "repeated DFlash2 control anchors are refused" {
++    const production = @import("inkling2_metal").inkling2_dflash2;
++    const a = std.testing.allocator;
++    const twice = try std.mem.concat(a, u8, &.{ production, production });
++    defer a.free(twice);
++    for (std.enums.values(Control)) |ctl| try std.testing.expectError(error.ControlEditMissing, source(a, twice, ctl));
++}
+diff --git a/zig/tests/contract/metal_inkling2_dflash2_ref.zig b/zig/tests/contract/metal_inkling2_dflash2_ref.zig
+new file mode 100644
+index 000000000..c086fe486
+--- /dev/null
++++ b/zig/tests/contract/metal_inkling2_dflash2_ref.zig
+@@ -0,0 +1,311 @@
++//! Reference computations and output checks for the Mini DFlash 2 Metal contract suite.
++const std = @import("std");
++const contract = @import("contract");
++const c = contract.spec;
++const host = @import("tensorfold").inkling2_dflash2_host;
++
++pub const H = host.hidden;
++pub const Q = host.query_width;
++pub const KV = host.kv_width;
++pub const QH = host.q_heads;
++pub const KVH = host.kv_heads;
++pub const D = host.head_dim;
++pub const G = QH / KVH;
++pub const INTER = host.intermediate;
++pub const RANK = host.rank;
++pub const GROUPS = host.conv_groups;
++pub const BLOCK = host.block_size;
++pub const PART = 132;
++pub const EPS: f32 = 1e-6;
++pub const THETA: f32 = 1e6;
++
++pub fn bf(v: f32) f32 {
++    return c.fromBf16(c.toBf16(v));
++}
++
++pub fn rmsInv(values: []const f32, start: usize, width: usize) f32 {
++    var sum: f32 = 0;
++    for (0..width) |d| {
++        const x = values[start + d];
++        sum += x * x;
++    }
++    return 1.0 / @sqrt(sum / @as(f32, @floatFromInt(width)) + EPS);
++}
++
++pub fn headNormRope(src: []const f32, w: []const f32, pos: usize, dst: []f64) void {
++    const inv = rmsInv(src, 0, D);
++    var nrm: [D]f32 = undefined;
++    for (0..D) |d| nrm[d] = bf(w[d] * bf(src[d] * inv));
++    for (0..D) |d| {
++        const i = d % 64;
++        const angle = @as(f32, @floatFromInt(pos)) * (1.0 / std.math.pow(f32, THETA, @as(f32, @floatFromInt(2 * i)) / 128.0));
++        const cs = bf(@cos(angle));
++        const sn = bf(@sin(angle));
++        const rot = if (d < 64) -nrm[d + 64] else nrm[d - 64];
++        dst[d] = bf(bf(nrm[d] * cs) + bf(rot * sn));
++    }
++}
++
++pub fn computeReference(kind: host.Kind, shape: c.Shape, attend_args: host.AttendArgs, f: [6][]f32, u: [3][]u32, want: []f64, mag: []f64) void {
++    const rows = shape.rows;
++    switch (kind) {
++        .embed => for (0..rows) |r| {
++            const src = f[0][u[0][r] * H ..][0..H];
++            if (shape.k == 0) {
++                for (0..H) |d| want[r * H + d] = src[d];
++            } else {
++                const inv = rmsInv(src, 0, H);
++                for (0..H) |d| want[r * H + d] = bf(src[d] * inv * f[1][d]);
++            }
++        },
++        .norm => for (0..rows) |r| {
++            var rrow: [H]f32 = undefined;
++            for (0..H) |d| {
++                var v = f[0][r * H + d];
++                if (shape.k != 0) v = bf(v + f[1][r * H + d]);
++                rrow[d] = v;
++                want[r * H + d] = v;
++            }
++            const inv = rmsInv(&rrow, 0, H);
++            for (0..H) |d| want[rows * H + r * H + d] = bf(f[2][d] * bf(rrow[d] * inv));
++        },
++        .norm16 => for (0..rows) |r| {
++            const inv = rmsInv(f[0], r * H, H);
++            for (0..H) |d| want[r * H + d] = bf(f[1][d] * bf(f[0][r * H + d] * inv));
++        },
++        .conv => for (0..rows) |r| for (0..H) |ch| {
++            const grp = ch / (H / GROUPS);
++            const side = shape.k;
++            const d_base = r * 4 * GROUPS + side * 2 * GROUPS;
++            const c0 = bf(f[2][(side * 2) * H + ch] + f[1][d_base + grp]);
++            const c1 = bf(f[2][(side * 2 + 1) * H + ch] + f[1][d_base + GROUPS + grp]);
++            var y = bf(c0 * f[0][r * H + ch]);
++            if (r % BLOCK >= 1) y = bf(y + bf(c1 * f[0][(r - 1) * H + ch]));
++            want[r * H + ch] = y;
++        },
++        .ctx_kv => for (0..rows) |r| {
++            const pos = shape.k + r;
++            const slot = pos % rows;
++            for (0..KVH) |h| {
++                headNormRope(f[0][(r * KVH + h) * D ..][0..D], f[2], pos, want[(slot * KVH + h) * D ..][0..D]);
++                for (0..D) |d| want[rows * KV + (slot * KVH + h) * D + d] = f[1][(r * KVH + h) * D + d];
++            }
++        },
++        .block_qkv => for (0..rows) |r| {
++            const pos = shape.k + (r % BLOCK);
++            for (0..QH) |h| headNormRope(f[0][(r * QH + h) * D ..][0..D], f[3], pos, want[(r * QH + h) * D ..][0..D]);
++            for (0..KVH) |h| {
++                headNormRope(f[1][(r * KVH + h) * D ..][0..D], f[4], pos, want[rows * Q + (r * KVH + h) * D ..][0..D]);
++                for (0..D) |d| want[rows * (Q + KV) + (r * KVH + h) * D + d] = f[2][(r * KVH + h) * D + d];
++            }
++        },
++        .attend => {
++            const a = attend_args;
++            for (0..rows) |r| {
++                const reach = a.anchor + @as(u32, @intCast(r)) + 1;
++                const row_lo = @max(a.from, if (reach > a.window) reach - a.window else 0);
++                for (0..KVH) |kh| for (0..a.chunks) |ch| {
++                    const first = ch * 128;
++                    const last = @min(a.keys, first + 128);
++                    for (0..G) |gg| {
++                        const q_off = (r * QH + kh * G + gg) * D;
++                        var max_s: f32 = -std.math.inf(f32);
++                        var has_nan = false;
++                        var scores: [128]f32 = undefined;
++                        var live_mask: [128]bool = undefined;
++                        for (first..last) |key| {
++                            const is_ctx = key < a.retained;
++                            const live = !is_ctx or (a.lo + @as(u32, @intCast(key))) >= row_lo;
++                            live_mask[key - first] = live;
++                            if (!live) {
++                                scores[key - first] = -std.math.inf(f32);
++                                continue;
++                            }
++                            const krow = if (is_ctx) (a.lo + @as(u32, @intCast(key))) % a.ring else @as(u32, @intCast(key - a.retained));
++                            const ksrc = if (is_ctx) f[3] else f[1];
++                            const k_off = (krow * KVH + kh) * D;
++                            var dot: f32 = 0;
++                            for (0..D) |d| dot += f[0][q_off + d] * ksrc[k_off + d];
++                            const sc = dot * a.scale;
++                            scores[key - first] = sc;
++                            if (std.math.isNan(sc)) has_nan = true else max_s = @max(max_s, sc);
++                        }
++                        if (has_nan) max_s = std.math.nan(f32);
++                        var tot: f32 = 0;
++                        var acc: [D]f32 = @splat(0);
++                        for (first..last) |key| {
++                            if (!live_mask[key - first]) continue;
++                            const p = @exp(scores[key - first] - max_s);
++                            tot += p;
++                            const is_ctx = key < a.retained;
++                            const krow = if (is_ctx) (a.lo + @as(u32, @intCast(key))) % a.ring else @as(u32, @intCast(key - a.retained));
++                            const vsrc = if (is_ctx) f[4] else f[2];
++                            const v_off = (krow * KVH + kh) * D;
++                            for (0..D) |d| acc[d] += p * vsrc[v_off + d];
++                        }
++                        const o_base = (((r * KVH + kh) * a.chunks + ch) * G + gg) * PART;
++                        for (0..D) |d| want[o_base + d] = acc[d];
++                        want[o_base + D] = max_s;
++                        want[o_base + D + 1] = tot;
++                    }
++                };
++            }
++        },
++        .attend_merge => {
++            const chunks = shape.n;
++            for (0..rows) |r| for (0..QH) |h| {
++                const kh = h / G;
++                const gg = h % G;
++                var max_s: f32 = -std.math.inf(f32);
++                for (0..chunks) |ch| {
++                    const m = f[0][(((r * KVH + kh) * chunks + ch) * G + gg) * PART + D];
++                    max_s = if (std.math.isNan(max_s) or std.math.isNan(m)) std.math.nan(f32) else @max(max_s, m);
++                }
++                var tot: f32 = 0;
++                var acc: [D]f32 = @splat(0);
++                for (0..chunks) |ch| {
++                    const base = (((r * KVH + kh) * chunks + ch) * G + gg) * PART;
++                    if (f[0][base + D] == -std.math.inf(f32)) continue;
++                    const w = @exp(f[0][base + D] - max_s);
++                    tot += f[0][base + D + 1] * w;
++                    for (0..D) |d| acc[d] += f[0][base + d] * w;
++                }
++                for (0..D) |d| want[(r * QH + h) * D + d] = bf(if (tot == 0) 0 else acc[d] / tot);
++            };
++        },
++        .silu_mul => for (want, 0..) |*dst, i| {
++            const gv = f[0][i];
++            const s = 1.0 / (1.0 + @exp(-gv));
++            dst.* = bf(bf(gv * s) * f[1][i]);
++        },
++        .topk16, .walk => @memset(want, 0),
++    }
++    for (mag, want) |*m, w| m.* = 1 + @abs(w);
++}
++
++pub fn checkTopk16(a: std.mem.Allocator, shape: c.Shape, logits: []const f32, bytes: []const u8) !?[]const u8 {
++    const rows = shape.rows;
++    const vocab = shape.n;
++    const stride = vocab + 16;
++    const k: usize = host.top_k;
++    const id_off = rows * k * 4;
++    const Pair = struct { val: f32, id: u32 };
++    const pairs = try a.alloc(Pair, vocab);
++    defer a.free(pairs);
++    for (0..rows) |r| {
++        var bad = false;
++        for (0..vocab) |tok| {
++            const v = logits[r * stride + tok];
++            if (!std.math.isFinite(v)) {
++                bad = true;
++                break;
++            }
++            pairs[tok] = .{ .val = v, .id = @intCast(tok) };
++        }
++        if (bad) {
++            for (0..k) |j| {
++                const got_v = c.read(.f32, bytes, r * k + j);
++                const got_id = std.mem.readInt(u32, bytes[id_off + (r * k + j) * 4 ..][0..4], .little);
++                if (got_v != -std.math.inf(f32) or got_id != 0xffffffff) return "topk16 did not reject non-finite score row with (-inf, 0xffffffff)";
++            }
++            continue;
++        }
++        std.mem.sort(Pair, pairs, {}, struct {
++            fn lt(_: void, lhs: Pair, rhs: Pair) bool {
++                if (lhs.val != rhs.val) return lhs.val > rhs.val;
++                return lhs.id < rhs.id;
++            }
++        }.lt);
++        for (0..k) |j| {
++            const got_v = c.read(.f32, bytes, r * k + j);
++            const got_id = std.mem.readInt(u32, bytes[id_off + (r * k + j) * 4 ..][0..4], .little);
++            if (got_id != pairs[j].id or got_v != pairs[j].val) return "topk16 output differs from exact descending top-16 with lowest-ID tie-break";
++        }
++    }
++    return null;
++}
++
++pub fn checkWalk(shape: c.Shape, f: [6][]f32, ui: []const u32, bytes: []const u8) ?[]const u8 {
++    const slots = shape.rows;
++    const vocab = shape.n;
++    const top: usize = host.top_k;
++    const softcap: f32 = if (shape.k != 0) 30.0 else 0.0;
++    var prev: u32 = 2;
++    if (std.mem.readInt(u32, bytes[0..4], .little) != prev) return "walk modified seed token seq[0]";
++    for (0..slots) |e| {
++        var want_id: u32 = 0xffffffff;
++        if (prev < vocab) {
++            var best: f32 = -std.math.inf(f32);
++            for (0..top) |ci| {
++                const cand = ui[e * top + ci];
++                if (cand >= vocab) continue;
++                var dot: f32 = 0;
++                for (0..RANK) |d| {
++                    const ah = bf(f[2][prev * RANK + d] * f[1][e * RANK + d]);
++                    dot += ah * f[3][cand * RANK + d];
++                }
++                var s = f[0][e * top + ci] + dot;
++                if (softcap > 0) s = softcap * std.math.tanh(s / softcap);
++                if (std.math.isFinite(s) and s > best) {
++                    best = s;
++                    want_id = cand;
++                }
++            }
++        }
++        const got_id = std.mem.readInt(u32, bytes[(1 + e) * 4 ..][0..4], .little);
++        if (got_id != want_id) return "walk token differs from guarded greedy selector reference";
++        prev = want_id;
++    }
++    return null;
++}
++
++pub fn checkNumeric(kind: host.Kind, shape: c.Shape, want: []const f64, bytes: []const u8) ?[]const u8 {
++    if (kind == .norm) {
++        const split = shape.rows * H;
++        for (0..split) |i| {
++            const got = c.read(.f32, bytes, i);
++            if (std.math.isNan(want[i])) {
++                if (!std.math.isNan(got)) return "norm residual NaN was not propagated";
++            } else if (@abs(@as(f64, got) - want[i]) > @max(1e-5, 0.01 * @abs(want[i]))) {
++                return "norm updated residual differs from reference";
++            }
++        }
++        const y_off = split * 4;
++        for (0..split) |i| {
++            const bits = std.mem.readInt(u16, bytes[y_off + 2 * i ..][0..2], .little);
++            const w = want[split + i];
++            if (std.math.isNan(w)) {
++                if (!std.math.isNan(c.fromBf16(bits))) return "norm output BF16 NaN was not propagated";
++            } else if (bits != c.toBf16(@floatCast(w))) {
++                const got = c.fromBf16(bits);
++                if (@abs(@as(f64, got) - w) > @max(1e-4, 0.02 * @abs(w))) return "norm BF16 output differs from reference";
++            }
++        }
++        return null;
++    }
++    const is_f32 = (kind == .embed or kind == .attend);
++    for (want, 0..) |w, i| {
++        if (is_f32) {
++            const got = c.read(.f32, bytes, i);
++            if (std.math.isNan(w)) {
++                if (!std.math.isNan(got)) return "FP32 NaN was not propagated";
++            } else if (std.math.isInf(w)) {
++                if (got != @as(f32, @floatCast(w))) return "FP32 infinity differs from reference";
++            } else if (@abs(@as(f64, got) - w) > @max(2e-4, 0.02 * @abs(w))) {
++                return "FP32 output differs from reference";
++            }
++        } else {
++            const bits = std.mem.readInt(u16, bytes[2 * i ..][0..2], .little);
++            if (std.math.isNan(w)) {
++                if (!std.math.isNan(c.fromBf16(bits))) return "BF16 NaN was not propagated";
++            } else if (bits != c.toBf16(@floatCast(w))) {
++                if (std.math.isInf(w)) return "BF16 infinity differs from reference";
++                const got = c.fromBf16(bits);
++                const abs_tol: f64 = if (kind == .block_qkv or kind == .ctx_kv) 0.02 else 1e-4;
++                const rel: f64 = if (kind == .attend_merge) 0.03 else 0.02;
++                if (@abs(@as(f64, got) - w) > @max(abs_tol, rel * @abs(w))) return "BF16 output differs from reference";
++            }
++        }
++    }
++    return null;
++}
+diff --git a/zig/tests/contract/metal_inkling2_main.zig b/zig/tests/contract/metal_inkling2_main.zig
+index 35cda9774..e7da79385 100644
+--- a/zig/tests/contract/metal_inkling2_main.zig
++++ b/zig/tests/contract/metal_inkling2_main.zig
+@@ -14,6 +14,7 @@ pub const Suites = struct {
+     runtime: @import("metal_inkling2_runtime.zig").Suite,
+     dspark: @import("metal_inkling2_dspark.zig").Suite,
+     vision: @import("metal_inkling2_vision.zig").Suite,
++    dflash2: @import("metal_inkling2_dflash2.zig").Suite,
+ 
+     /// The probes' contexts point into the suites, so the set is built where it stays.
+     pub fn init(s: *Suites, a: std.mem.Allocator, device: mtl.Device, queue: mtl.Queue, kernels: *std.ArrayList(g.Kernel), only: ?[]const u8) !void {
+@@ -28,6 +29,7 @@ pub const Suites = struct {
+             .runtime = .{ .a = a, .device = device, .queue = queue, .kernels = kernels },
+             .dspark = .{ .a = a, .device = device, .queue = queue, .kernels = kernels },
+             .vision = .{ .a = a, .device = device, .queue = queue, .kernels = kernels },
++            .dflash2 = .{ .a = a, .device = device, .queue = queue, .kernels = kernels },
+         };
+         errdefer s.deinit();
+         try s.attention.collect(only);
+@@ -40,6 +42,7 @@ pub const Suites = struct {
+         try s.runtime.collect(only);
+         try s.dspark.collect(only);
+         try s.vision.collect(only);
++        try s.dflash2.collect(only);
+     }
+ 
+     pub fn deinit(s: *Suites) void {
+@@ -53,5 +56,6 @@ pub const Suites = struct {
+         s.runtime.deinit();
+         s.dspark.deinit();
+         s.vision.deinit();
++        s.dflash2.deinit();
+     }
+ };
+diff --git a/zig/tests/contract/metal_limits.zig b/zig/tests/contract/metal_limits.zig
+index cfd210b87..017299d59 100644
+--- a/zig/tests/contract/metal_limits.zig
++++ b/zig/tests/contract/metal_limits.zig
+@@ -236,6 +236,8 @@ fn resolve(a: std.mem.Allocator, device: mtl.Device, d: limits.MetalLaunch, comp
+         if (!assemble) return undefined;
+         const body = if (std.mem.startsWith(u8, d.name, "metal inkling2 dspark "))
+             @import("inkling2_metal").inkling2_dspark
++        else if (std.mem.startsWith(u8, d.name, "metal inkling2 dflash2 "))
++            @import("inkling2_metal").inkling2_dflash2
+         else if (std.mem.startsWith(u8, d.name, "metal inkling2 runtime "))
+             @import("inkling2_metal").runtime
+         else if (std.mem.startsWith(u8, d.name, "metal inkling2 loop "))
+diff --git a/zig/src/native/inkling2.zig b/zig/src/native/inkling2.zig
+index 3e1bc6196..c1daadaa8 100644
+--- a/zig/src/native/inkling2.zig
++++ b/zig/src/native/inkling2.zig
+@@ -9,13 +9,75 @@ const backend = @import("../families/inkling2/metal/backend.zig");
+ const dspark = @import("../families/inkling2/metal/dspark.zig");
+ const admit = @import("../families/inkling2/metal/admit.zig");
+ const vision = @import("../families/inkling2/metal/vision.zig");
++const dflash2 = @import("../families/inkling2/metal/dflash2.zig");
++const dflash2_weights = @import("../families/inkling2/metal/dflash2_weights.zig");
++
++const AttachedDrafter = union(enum) {
++    dspark: *dspark.Drafter,
++    dflash2: *dflash2.Drafter,
++
++    fn deinit(a: AttachedDrafter) void {
++        switch (a) {
++            .dspark => |d| d.deinit(),
++            .dflash2 => |d| d.deinit(),
++        }
++    }
++    fn kind(a: AttachedDrafter) []const u8 {
++        return switch (a) {
++            .dspark => "DSpark",
++            .dflash2 => "DFlash2",
++        };
++    }
++    fn fixedBytes(a: AttachedDrafter) u64 {
++        return switch (a) {
++            .dspark => |d| d.fixedBytes() + dspark.Drafter.scoreBytes(0),
++            .dflash2 => |d| d.fixedBytes(),
++        };
++    }
++    fn streamFixed(a: AttachedDrafter) u64 {
++        return switch (a) {
++            .dspark => dspark.Drafter.streamBytes(0) + dspark.Drafter.ring_slack * dspark.Drafter.tokenBytes(),
++            .dflash2 => dflash2.streamBytes(),
++        };
++    }
++    fn streamToken(a: AttachedDrafter) u64 {
++        return switch (a) {
++            .dspark => dspark.Drafter.tokenBytes(),
++            .dflash2 => 0,
++        };
++    }
++    fn sharedToken(a: AttachedDrafter) u64 {
++        return switch (a) {
++            .dspark => dspark.Drafter.scoreBytes(1) - dspark.Drafter.scoreBytes(0),
++            .dflash2 => 0,
++        };
++    }
++    fn reservedBytes(a: AttachedDrafter, streams: u64, window: usize) u64 {
++        return switch (a) {
++            .dspark => streams * dspark.Drafter.streamBytes(window) + dspark.Drafter.scoreBytes(window) - dspark.Drafter.scoreBytes(0),
++            .dflash2 => streams * dflash2.streamBytes(),
++        };
++    }
++    fn setContext(a: AttachedDrafter, window: u32) !void {
++        switch (a) {
++            .dspark => |d| try d.setContext(window),
++            .dflash2 => {},
++        }
++    }
++    fn iface(a: AttachedDrafter) lanes.drafter.Drafter {
++        return switch (a) {
++            .dspark => |d| d.drafter(),
++            .dflash2 => |d| d.drafter(),
++        };
++    }
++};
+ 
+ const Host = struct {
+     gpa: std.mem.Allocator,
+     io: std.Io,
+     model: *Model,
+     metal: *backend.Metal,
+-    drafter: ?*dspark.Drafter = null,
++    drafter: ?AttachedDrafter = null,
+     drafted: ?lanes.drafted.Drafted = null,
+     vision: ?*vision.Tower = null,
+     markers: [1]u32 = undefined,
+@@ -92,10 +154,21 @@ pub fn open(a: std.mem.Allocator, gpa: std.mem.Allocator, io: std.Io, o: api.Ope
+     };
+     const drafter_dir = drafterDirectory(o);
+     errdefer model.deinit();
+-    const drafter = if (drafter_dir) |dir| dspark.Drafter.init(gpa, io, model.device, model, dir) catch |err| {
+-        problem.* = try std.fmt.allocPrint(a, "--drafter: Inkling 2 Mini DSpark cannot load {s} ({s})", .{ dir, @errorName(err) });
+-        model.deinit();
+-        return null;
++    const drafter: ?AttachedDrafter = if (drafter_dir) |dir| blk: {
++        if (dflash2_weights.isDFlash2Dir(gpa, io, dir)) {
++            const df = dflash2.Drafter.init(gpa, io, model.device, model, dir) catch |err| {
++                problem.* = try std.fmt.allocPrint(a, "--drafter: Inkling 2 Mini DFlash2 cannot load {s} ({s})", .{ dir, @errorName(err) });
++                model.deinit();
++                return null;
++            };
++            break :blk .{ .dflash2 = df };
++        }
++        const ds = dspark.Drafter.init(gpa, io, model.device, model, dir) catch |err| {
++            problem.* = try std.fmt.allocPrint(a, "--drafter: Inkling 2 Mini DSpark cannot load {s} ({s})", .{ dir, @errorName(err) });
++            model.deinit();
++            return null;
++        };
++        break :blk .{ .dspark = ds };
+     } else null;
+     errdefer if (drafter) |d| d.deinit();
+     const tower = if (o.vision) |v| vision.Tower.load(gpa, io, o.dir, model.device, model.queue, &model.config, .{ .max_tokens = v.image_tokens }) catch |err| {
+@@ -112,7 +185,7 @@ pub fn open(a: std.mem.Allocator, gpa: std.mem.Allocator, io: std.Io, o: api.Ope
+         if (std.c.sysctlbyname("hw.memsize", &ram, &len, null, 0) != 0) ram = 0;
+     }
+     const scratch: u64 = st.scratchBytes(st.batch_rows) + st.scratchBytes(st.prompt_rows);
+-    const resident = model.checkpoint.residentBytes() + scratch + if (drafter) |d| d.fixedBytes() + dspark.Drafter.scoreBytes(0) else 0;
++    const resident = model.checkpoint.residentBytes() + scratch + if (drafter) |d| d.fixedBytes() else 0;
+     const image_bytes: u64 = if (tower) |t| t.bytes() + image_rows else 0;
+     const budget = cacheBudget(ram, model.device.maxWorkingSet(), @import("sys").getenv("INKLING2_LOAD_LIMIT_GB"), resident + image_bytes) catch {
+         if (tower) |t| t.deinit();
+@@ -122,9 +195,9 @@ pub fn open(a: std.mem.Allocator, gpa: std.mem.Allocator, io: std.Io, o: api.Ope
+         return null;
+     };
+     const streams: u64 = @max(o.lanes, 1);
+-    const draft_token = if (drafter != null) dspark.Drafter.tokenBytes() else 0;
+-    const draft_fixed = if (drafter != null) dspark.Drafter.streamBytes(0) + dspark.Drafter.ring_slack * draft_token else 0;
+-    const draft_shared_token = if (drafter) |_| dspark.Drafter.scoreBytes(1) - dspark.Drafter.scoreBytes(0) else 0;
++    const draft_fixed = if (drafter) |d| d.streamFixed() else 0;
++    const draft_token = if (drafter) |d| d.streamToken() else 0;
++    const draft_shared_token = if (drafter) |d| d.sharedToken() else 0;
+     const fits = longest(budget, model.config.text.max_context, streams, draft_fixed, draft_token, draft_shared_token);
+     const window: i64 = o.context orelse @intCast(fits);
+     if (contextProblem(window, fits)) |why| {
+@@ -144,7 +217,7 @@ pub fn open(a: std.mem.Allocator, gpa: std.mem.Allocator, io: std.Io, o: api.Ope
+     h.drafter = drafter;
+     h.vision = tower;
+     h.markers = .{model.config.image_token};
+-    const reserved = if (drafter != null) streams * dspark.Drafter.streamBytes(@intCast(window)) + dspark.Drafter.scoreBytes(@intCast(window)) - dspark.Drafter.scoreBytes(0) else 0;
++    const reserved = if (drafter) |d| d.reservedBytes(streams, @intCast(window)) else 0;
+     if (reserved > budget) return error.DSparkReservationExceeded;
+     h.metal = try backend.Metal.init(gpa, model, .{ .capacity = @intCast(window), .streams = @max(o.lanes, 1), .budget = budget - reserved, .images = if (tower != null) .{ .ctx = h, .encode = Host.encode } else null });
+     errdefer h.metal.deinit();
+@@ -154,9 +227,14 @@ pub fn open(a: std.mem.Allocator, gpa: std.mem.Allocator, io: std.Io, o: api.Ope
+     if (drafter) |d| {
+         try h.metal.measure();
+         try d.setContext(@intCast(window));
+-        try d.warm(@intCast(streams));
+-        h.metal.drafter = d;
+-        h.drafted = try lanes.drafted.Drafted.init(gpa, h.metal.backend(), d.drafter());
++        switch (d) {
++            .dspark => |ds| {
++                try ds.warm(@intCast(streams));
++                h.metal.drafter = ds;
++            },
++            .dflash2 => {},
++        }
++        h.drafted = try lanes.drafted.Drafted.init(gpa, h.metal.backend(), d.iface());
+         h.drafted.?.first_rows = true;
+     }
+     errdefer if (h.drafted) |*d| d.deinit();
+@@ -166,7 +244,7 @@ pub fn open(a: std.mem.Allocator, gpa: std.mem.Allocator, io: std.Io, o: api.Ope
+     h.clock = .{ .io = io };
+     h.core = lanes.Engine.init(gpa, &h.config, if (h.drafted) |*d| d.backend() else h.metal.backend(), h.clock.clock());
+     errdefer h.core.deinit();
+-    h.host = api.LaneHost.init(gpa, io, &h.core, .{ .lanes = o.lanes, .context_window = @intCast(window), .prefill_step = st.prompt_rows, .decode_share = o.decode_share, .structures = true, .logprobs = true, .draft_sources = .{ .drafter = if (drafter_dir) |dir| .{ .kind = "DSpark", .name = o.drafter_name orelse dir } else null } });
++    h.host = api.LaneHost.init(gpa, io, &h.core, .{ .lanes = o.lanes, .context_window = @intCast(window), .prefill_step = st.prompt_rows, .decode_share = o.decode_share, .structures = true, .logprobs = true, .draft_sources = .{ .drafter = if (drafter) |d| .{ .kind = d.kind(), .name = o.drafter_name orelse drafter_dir.? } else null } });
+     if (o.vision) |v| h.host.info_.vision = .{ .ctx = h, .prepare = Host.prepare, .image_token = model.config.image_token, .markers = &h.markers, .part_type = "image", .image_tokens = v.image_tokens, .max_images = v.max_images, .explain = vision.problem };
+     h.cache = null;
+     h.cache_cap = if (o.prompt_cache_gib) |g| @intFromFloat(g * (1 << 30)) else budget;
