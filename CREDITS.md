@@ -49,6 +49,15 @@ License, Version 2.0 ([`LICENSE`](LICENSE)). The image `scripts/prepare.sh` buil
   TensorFold's lane host, engine API and HTTP server, by Ash Hart ([ashhart](https://github.com/ashhart)) with
   [laudney](https://github.com/laudney), [BobClawblaw](https://github.com/BobClawblaw) and
   [plotarmordev](https://github.com/plotarmordev), the main other authors of the files it edits.
+- **Jay Leaton** ([jayleaton](https://github.com/jayleaton)): the in-model runner and S3 (patches `0025`–`0026`): the tool-full range
+  `3adb042bb..01a62132c` of the DeepSeek V4.1 branch (the scanner and held cells, the RV32 frontend and clang forkserver, the circuit and
+  graph backends, S3, the compute default and `Engine.attachRunner`), without its DeepSeek family wiring, and its wiring for any
+  lane-hosted family. Like the lane, it builds on Ash Hart's lane host and HTTP server and their contributors above.
+- **[Qwenputer](https://github.com/divagr18/qwenputer)** by Divyansh Agrawal ([divagr18](https://github.com/divagr18)), MIT, revision
+  `bec1a0c`: the IR, exact SwiGLU primitives and P2 token bus the runner's circuit (`calc.tfpc`) and graph bank are compiled from. A
+  `RUNNER=1` image carries its notice.
+- **[LLVM](https://llvm.org)** (Apache-2.0 with LLVM exceptions): Ubuntu's clang-18 and lld-18 build the runner's RV32 programs in a
+  `RUNNER=1` image.
 - **[xgrammar](https://github.com/mlc-ai/xgrammar)** by the MLC-AI team (Apache-2.0): `libtfgrammar.so`, built from the patched tree over xgrammar
   v0.2.8 at its pinned commit (its license, NOTICE and dlpack's license ship in the image).
 - **[libjpeg-turbo](https://libjpeg-turbo.org)** 3.1.4.1 (IJG, BSD-3-Clause and zlib licenses) and **[libwebp](https://chromium.googlesource.com/webm/libwebp)**
