@@ -59,13 +59,15 @@ if [[ $REBUILD -eq 1 || "$built_hash" != "$PATCHES_HASH" ]]; then
   trap 'rm -rf -- "$ctx"' EXIT
   mkdir -p "$ctx/patches"
   compgen -G 'patches/*.patch' >/dev/null && cp -- patches/*.patch "$ctx/patches/"
+  if [[ "$RUNNER" == 1 ]]; then python3 -I scripts/runner_assets.py "$ctx/runner" || die "the runner assets did not check out"
+  else mkdir "$ctx/runner"; fi
   nocache=(); [[ $REBUILD -eq 1 ]] && nocache=(--no-cache)
   # shellcheck disable=SC2086  # DOCKER_BUILD_ARGS is a list of flags on purpose
   docker build ${DOCKER_BUILD_ARGS:-} "${nocache[@]}" -t "$IMAGE" --build-arg BASE_IMAGE="$BASE_IMAGE" \
     --build-arg TF_REPO="$TF_REPO" --build-arg TF_REF="$TF_REF" \
     --build-arg ZIG_VERSION="$ZIG_VERSION" --build-arg ZIG_SHA256="$ZIG_SHA256" \
     --build-arg XGRAMMAR_REPO="$XGRAMMAR_REPO" --build-arg XGRAMMAR_TAG="$XGRAMMAR_TAG" --build-arg XGRAMMAR_REF="$XGRAMMAR_REF" \
-    --build-arg NATIVE_FP_DECODE="$NATIVE_FP_DECODE" --build-arg PATCHES_HASH="$PATCHES_HASH" \
+    --build-arg NATIVE_FP_DECODE="$NATIVE_FP_DECODE" --build-arg PATCHES_HASH="$PATCHES_HASH" --build-arg RUNNER="$RUNNER" \
     -f - "$ctx" <<'DOCKERFILE'
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:26.07-py3
 # PNG is built into the engine; JPEG and WebP images go through these two pinned decoders, which the engine loads from
@@ -110,6 +112,10 @@ RUN cd /tensorfold && NFP=false && if [ "${NATIVE_FP_DECODE}" = 1 ]; then NFP=tr
     /opt/zig/zig build -Dnvcc=/usr/local/cuda/bin/nvcc -Doptimize=fast -Dnative-fp-decode=$NFP --prefix /opt/tensorfold \
       -j"$(nproc)" fatbins native && \
     test -x /opt/tensorfold/native/bin/tensorfold-native
+# RUNNER=1: the circuit frontend's boot self-test (compiles a C cell to an RV32 ELF; the engine runs the same check)
+ARG RUNNER=0
+RUN if [ "${RUNNER}" = 1 ]; then cd /tensorfold && /opt/zig/zig build runner-frontend-check --prefix /opt/tensorfold -j"$(nproc)" && \
+      test -x /opt/tensorfold/bin/tf-runner-frontend-check; fi
 # libtfgrammar.so (structured output, required tool calls) from the patched tree's tf_grammar.cc over xgrammar
 # v0.2.8 at its pinned commit; the engine finds it in <binary dir>/../lib, i.e. /opt/tensorfold/native/lib
 ARG XGRAMMAR_REPO
@@ -135,6 +141,17 @@ COPY --from=build /opt/tensorfold /opt/tensorfold
 COPY --from=codecs /opt/codecs/lib/ /opt/tensorfold/native/lib/
 COPY --from=codecs /opt/codecs/doc/ /opt/tensorfold/share/doc/tensorfold/LICENSES-codecs/
 RUN ln -s /opt/tensorfold/native/bin/tensorfold-native /usr/local/bin/tensorfold-native
+# RUNNER=1: clang-18 and lld-18 for the runner's RV32 programs, its circuit and graph bank, and a check that the
+# circuit computes the engine's probe cells; RUNNER=0 leaves the image as without it
+ARG RUNNER=0
+COPY runner /opt/tensorfold/share/runner
+RUN if [ "${RUNNER}" = 1 ]; then \
+      apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clang-18 lld-18 && \
+      ln -sf clang-18 /usr/bin/clang && ln -sf ld.lld-18 /usr/bin/ld.lld && rm -rf /var/lib/apt/lists/* && \
+      mkdir -p /opt/tensorfold/share/doc/tensorfold/LICENSES-runner && \
+      cp /opt/tensorfold/share/runner/graph-v7-powmod/bank/Qwenputer-MIT.txt /opt/tensorfold/share/doc/tensorfold/LICENSES-runner/ && \
+      /opt/tensorfold/bin/tf-runner-frontend-check --require --circuit /opt/tensorfold/share/runner/calc.tfpc; \
+    else rmdir /opt/tensorfold/share/runner; fi
 ARG PATCHES_HASH
 LABEL tf.patches=${PATCHES_HASH} tf.kernels=embedded
 ENV CUDA_CACHE_PATH=/cache/nv

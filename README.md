@@ -270,7 +270,8 @@ All defaults live in [`scripts/config.sh`](scripts/config.sh). Override them fro
 | `CONTEXT` | `131072` | prompt + reply window a stream (up to `1048576`) |
 | `PROMPT_CACHE_DISK` | `1` | `1`: keep prompt and conversation states on disk too (`--prompt-cache-disk /sessions`); `0`: RAM only |
 | `SESSION_DIR` | `$HOME/.cache/tensorfold-inkling2/sessions` | the disk states' folder (put it on the NVMe), mounted at `/sessions` |
-| `COMPUTE_LANE` | `0` | `1`: the compute lane (`TF_INKLING2_COMPUTE_LANE=1`, see [Compute lane](#compute-lane)) |
+| `COMPUTE_LANE` | `0` | `1`: the compute lane (`TF_INKLING2_COMPUTE_LANE=1`, see [Compute lane](#compute-lane)); `tool-full`: also the in-model runner (needs `RUNNER=1`) |
+| `RUNNER` | `0` (`1` with `tool-full`) | build the runner image (`…-runner` tag): clang-18, lld-18, the runner circuit and graph bank (~172 MB, sha256-checked) |
 | `KV_DTYPE` | `fp8` | target KV cache: `fp8` or `bf16` (exact) |
 | `DRAFTS` | `1` | `1`: draft with `DRAFTER`; `0`: `--no-drafts` |
 | `DRAFTER` | `dflash2` | `dflash2`: the DFlash2 draft model (`--drafter /models/draft`); `dspark`: the checkpoint's DSpark head (`--drafter /models/ink`) |
@@ -337,10 +338,37 @@ same lane from the same patches. The sandbox (`compute_sandbox.zig`) needs Linux
 the boot self-test (`print(1+1)` in the sandbox) fails, and the server refuses to start with the lane on. The same self-test fails the boot
 when a container's seccomp profile blocks Landlock.
 
-**Against TensorFold main** (`920fe22c`): only `0020` (the sandbox) applies as is. `0021`–`0023` need main's later `engine_api.zig` and
-`lane_host.zig`, and `0024` patches `inkling_reply.zig`, which main does not have: its Inkling replies go through `loop_*` code.
+### Tool-full
 
-## Patches (`patches/0001`–`0024`)
+`COMPUTE_LANE=tool-full` adds the in-model runner (`0025`–`0026`), the DeepSeek V4.1 kit's AB3 "tool-full" arm:
+
+- The model's code cells inside its thinking (fenced code, REPL lines, inline arithmetic and traces) are run on the runner circuit with the
+  graph-v7-powmod bank, and their values are written back into the thinking as it streams.
+- `code_interpreter` calls run on the runner first (S3) and in the sandbox when it abstains.
+- Each reply's `runtime.compute_executed` counts what ran.
+
+It needs the runner image: `RUNNER=1` (which `tool-full` sets) builds `tensorfold-inkling2:c4-dc2ca8a-runner`. That image adds:
+
+- the circuit frontend's boot check (`tf-runner-frontend-check`, also run as a build step against the shipped circuit);
+- clang-18 and lld-18 for the RV32 programs;
+- the assets [`config/runner-assets.*`](config/) pin.
+
+`start.sh` sets the profile's `TF_INKLING2_RUNNER*` and `TF_INKLING2_COMPUTE_LANE_RUNNER*` knobs, each unless already set, so any one can
+be overridden from the environment or `.env`. `TF_INKLING2_COMPUTE_LANE_DEFAULT=1` makes it hold for every thinking chat. With
+`TF_INKLING2_RUNNER` unset, nothing of the runner opens.
+
+**Portability.**
+- Linux-only: the sandbox; runner thread placement and niceness (`sched_setaffinity` and `setpriority`, a no-op elsewhere); the clang
+  forkserver.
+- Portable: the scanner, holds and delivery, the circuit and graph backends, the frontend, receipts, guides and the attach hook. The
+  attach hook is `Engine.attachRunner`, which the shared lane host implements.
+- On macOS, S3 has no sandbox fallback.
+
+**Against TensorFold main** (`920fe22c`): only `0020` (the sandbox) applies as is. `0021`–`0023` need main's later `engine_api.zig` and
+`lane_host.zig`, `0024` patches `inkling_reply.zig`, which main does not have (its Inkling replies go through `loop_*` code), and
+`0025`–`0026` build on all of them.
+
+## Patches (`patches/0001`–`0026`)
 
 Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 
@@ -359,6 +387,8 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 | `0020`–`0022` | The compute lane's sandboxed executor (`core/compute_sandbox.zig`: Landlock, seccomp, rlimits, kept niceness above 10, the `__compute_sandbox` trampoline) and the engine half: `Request.hold_eos`, `resume_held` in the shared lane host, held results forced in as prompt tokens. Ported from the DeepSeek V4.1 Spark kit's patches 0197–0201 |
 | `0023` | The compute lane for any lane-hosted family, read from the reply format: Inkling 2's call blocks (`chat_inkling.read`), its tool turn rendered by name from the chat template, `TF_INKLING2_COMPUTE_LANE*` |
 | `0024` | Inkling 2: a call to a tool the request did not offer goes out as a tool call, as vLLM returns it (after the DeepSeek kit's 0206–0207) |
+| `0025` | The in-model runner, S3 and the compute default, from the DeepSeek V4.1 kit's tool-full range (`3adb042bb..01a62132c`) without its DeepSeek family wiring: the scanner and held cells, the RV32 frontend and clang forkserver, the CPU circuit and graph backends, runner-first `code_interpreter` (S3), `_COMPUTE_LANE_DEFAULT`, and `Engine.attachRunner` in the shared lane host |
+| `0026` | The runner and S3 for any lane-hosted family (`server/runner_boot.zig`): `TF_INKLING2_RUNNER*` and `TF_INKLING2_COMPUTE_LANE_RUNNER*` for Inkling 2's replies; the image's boot check fails closed when either runner knob is set |
 
 ## Tools
 
@@ -380,8 +410,9 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 ```
 start.sh      set up (first run) and start the server
 stop.sh       stop it
-scripts/      config.sh, prepare.sh, fetch.sh, banner.sh
-patches/      0001–0024 applied onto TensorFold at TF_REF
+scripts/      config.sh, prepare.sh, fetch.sh, banner.sh, runner_assets.py
+patches/      0001–0026 applied onto TensorFold at TF_REF
+config/       the runner image's asset pins (runner-assets.release, runner-assets.sha256)
 tools/        verification scripts
 CREDITS.md    upstream credits
 NOTICE        third-party notices
@@ -398,7 +429,7 @@ the upstream terms and notices.
 [NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the
 [Product-Specific Terms for NVIDIA AI Products](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/).
 By running the image you accept them. The Apache-2.0 license covers this repository's scripts and patches only. The image also carries the licenses of xgrammar,
-libjpeg-turbo and libwebp, which it builds.
+libjpeg-turbo and libwebp, which it builds; a `RUNNER=1` image also carries Qwenputer's MIT notice for the graph bank (see [`NOTICE`](NOTICE)).
 
 ## Credits
 
@@ -412,8 +443,8 @@ libjpeg-turbo and libwebp, which it builds.
     vLLM.
 
   Benchmarked with [sparkDash](https://github.com/MiaAI-Lab/sparkDash/).
-- **Spark defaults, states on disk (`0019`) and the compute lane (`0020`–`0024`):** by [jayleaton](https://github.com/jayleaton) on Mia's
-  recipe; the lane is ported from the DeepSeek V4.1 Spark kit.
+- **Spark defaults, states on disk (`0019`), the compute lane and tool-full (`0020`–`0026`):** by [jayleaton](https://github.com/jayleaton)
+  on Mia's recipe; the lane and tool-full are ported from the DeepSeek V4.1 Spark kit.
 - **Engine:** [TensorFold](https://github.com/ashhart/TensorFold) and `tensorfold-native` by Ash Hart ([ashhart](https://github.com/ashhart))
   and contributors.
 - **Inkling 2 Mini on CUDA:**

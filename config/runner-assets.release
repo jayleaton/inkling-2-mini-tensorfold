@@ -1,0 +1,5 @@
+# The in-model runner's assets for RUNNER=1 images (scripts/runner_assets.py): the runner circuit (calc.tfpc) and the
+# graph-v7-powmod bank, one deterministic tar.gz, as the DeepSeek V4.1 Spark kit's AB3 image served them. Every file is
+# checked against runner-assets.sha256.
+url https://github.com/jayleaton/deepseek-v41-tensorfold-spark/releases/download/runner-assets-20261107/runner-assets-20261107.tar.gz
+sha256 b5c40d32bcab0fa896795d08aaa651d55d0574e500f3624e61db23058cdd800f

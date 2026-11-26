@@ -80,4 +80,12 @@ Inkling-2-Mini-DFlash2 (a local folder; not included in this repository or its i
   it is copied, modified or redistributed by this project. DFlash (https://github.com/z-lab/dflash, MIT) is the method
   it follows.
 
+In-model runner assets (RUNNER=1 images only)
+  The runner circuit (calc.tfpc) and the graph-v7-powmod bank, as the DeepSeek V4.1 Spark kit's image served them.
+  scripts/runner_assets.py downloads them from the release config/runner-assets.release names and checks every file
+  against config/runner-assets.sha256; scripts/prepare.sh copies them unmodified into /opt/tensorfold/share/runner. The
+  bank carries Qwenputer's MIT notice (Copyright (c) 2026 Divyansh Agrawal), copied to
+  /opt/tensorfold/share/doc/tensorfold/LICENSES-runner/Qwenputer-MIT.txt. The same layer installs Ubuntu's clang-18 and
+  lld-18 (LLVM, Apache License 2.0 with LLVM exceptions) for the runner's RV32 programs.
+
 See CREDITS.md for everyone this project builds on.

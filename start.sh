@@ -14,13 +14,14 @@
 #   DRAFTER=dspark ./start.sh restart  # the checkpoint's own DSpark head instead of DFlash2
 #   VISION=0 ./start.sh restart        # text only: no vision tower (saves ~0.6 GiB)
 #   COMPUTE_LANE=1 ./start.sh restart  # run the model's code_interpreter calls in a sandbox, inside the reply
+#   COMPUTE_LANE=tool-full ./start.sh restart  # also the in-model runner (builds the RUNNER=1 image)
 #   DRY_RUN=1 ./start.sh               # print the docker command and exit
 # Extra arguments go to tensorfold-native serve after the defaults, so they win.
 # Settings, from the environment or ./.env (scripts/config.sh):
 #   serving  CONTEXT, PARALLEL, MAX_TOKENS, THINKING, REASONING_EFFORT, DRAFTS, DRAFTER, VISION, VISION_URLS, PROMPT_CACHE_DISK,
 #            COMPUTE_LANE, VISION_MAX_IMAGES, VISION_IMAGE_TOKENS, TEMPERATURE, TOP_P, TOP_K, SERVED_NAME, HOST, PORT
 #   files    MODEL_DIR, DRAFTER_DIR, KERNEL_CACHE, STATE_DIR, SESSION_DIR
-#   image    IMAGE, TF_REPO, TF_REF, ZIG_VERSION, BASE_IMAGE, NATIVE_FP_DECODE, CONTAINER_NAME
+#   image    IMAGE, RUNNER, TF_REPO, TF_REF, ZIG_VERSION, BASE_IMAGE, NATIVE_FP_DECODE, CONTAINER_NAME
 #   setup    PREPARE (auto | 1 | 0), FOREGROUND=1, WAIT_TIMEOUT, DRY_RUN=1, MEM_NEED_GIB, MEM_CHECK=0
 #   engine   every TENSORFOLD_*, TF_INKLING2_*, TF_NVFP4_*, TF_REASONING_*, TF_TOOL_CALL_* and TF_KPROF* variable goes into the
 #            container (TENSORFOLD_API_KEY by name only)
@@ -40,7 +41,9 @@ for arg in "$@"; do [[ "$arg" == -h || "$arg" == --help ]] && { usage; exit 0; }
 [[ "$CONTEXT" =~ ^[1-9][0-9]*$ && "$CONTEXT" -le 1048576 ]] || die "CONTEXT is a token count up to 1048576 (the model's window), not $CONTEXT"
 [[ "$PARALLEL" =~ ^([1-9]|1[0-6])$ ]] || die "PARALLEL is 1 to 16, not $PARALLEL"
 [[ "$MAX_TOKENS" =~ ^[1-9][0-9]*$ ]] || die "MAX_TOKENS is a token count, not $MAX_TOKENS"
-for v in THINKING DRAFTS VISION VISION_URLS PROMPT_CACHE_DISK COMPUTE_LANE; do [[ "${!v}" =~ ^[01]$ ]] || die "$v is 0 or 1, not ${!v}"; done
+for v in THINKING DRAFTS VISION VISION_URLS PROMPT_CACHE_DISK; do [[ "${!v}" =~ ^[01]$ ]] || die "$v is 0 or 1, not ${!v}"; done
+[[ "$COMPUTE_LANE" =~ ^(0|1|tool-full)$ ]] || die "COMPUTE_LANE is 0, 1 or tool-full, not $COMPUTE_LANE"
+[[ "$COMPUTE_LANE" != tool-full || "$RUNNER" == 1 ]] || die "COMPUTE_LANE=tool-full needs the runner image (RUNNER=1)"
 [[ -z "$REASONING_EFFORT" || "$REASONING_EFFORT" =~ ^(none|minimal|low|medium|high|xhigh|max|0(\.[0-9]+)?)$ ]] ||
   die "REASONING_EFFORT is none, minimal, low, medium, high, xhigh, max or a number in [0, 0.99], not $REASONING_EFFORT"
 DRY=0; [[ "${DRY_RUN:-0}" == 1 ]] && DRY=1
@@ -175,7 +178,20 @@ else
 fi
 
 SESSION_MOUNT=(); [[ "$PROMPT_CACHE_DISK" == 1 ]] && SESSION_MOUNT=(-v "$SESSION_DIR":/sessions)
-[[ "$COMPUTE_LANE" == 1 && -z "${TF_INKLING2_COMPUTE_LANE:-}" ]] && export TF_INKLING2_COMPUTE_LANE=1
+[[ "$COMPUTE_LANE" != 0 && -z "${TF_INKLING2_COMPUTE_LANE:-}" ]] && export TF_INKLING2_COMPUTE_LANE=1
+if [[ "$COMPUTE_LANE" == tool-full ]]; then
+  # the DeepSeek V4.1 kit's AB3 tool-full arm: the in-model runner in thinking (graph backend) and S3, runner first
+  _share=/opt/tensorfold/share/runner
+  for _kv in RUNNER=1 RUNNER_CIRCUIT=$_share/calc.tfpc RUNNER_FORMS=fence,repl,inline,trace RUNNER_BACKEND=graph \
+             RUNNER_GRAPH_BANK=$_share/graph-v7-powmod/bank/bank.json RUNNER_STATED=0 RUNNER_INLINE_CHAIN=0 RUNNER_INLINE_MARK=0 \
+             RUNNER_SYNC_GRAPH=0 RUNNER_COMPILE_STEPS=10522 RUNNER_CELLS=1 RUNNER_COMMIT=0 COMPUTE_LANE_RUNNER=1 \
+             COMPUTE_LANE_RUNNER_CIRCUIT=$_share/calc.tfpc COMPUTE_LANE_RUNNER_BACKEND=graph \
+             COMPUTE_LANE_RUNNER_GRAPH_BANK=$_share/graph-v7-powmod/bank/bank.json COMPUTE_LANE_RUNNER_SETTLE_US=3000; do
+    _name=TF_INKLING2_${_kv%%=*}
+    [[ -n "${!_name+set}" ]] || export "$_name=${_kv#*=}"
+  done
+  unset _share _kv _name
+fi
 ENV_ARGS=()
 while IFS='=' read -r name _; do
   [[ "$name" == TENSORFOLD_API_KEY ]] && continue
@@ -277,7 +293,7 @@ cat <<EOF
     Model    $MODEL_DIR ($QUANT_LABEL)
     Window   $(arg_value --context) tokens · $(arg_value --parallel) at once · $KV_DTYPE KV · drafts $(drafts_label)
     States   $( [[ "$PROMPT_CACHE_DISK" == 1 ]] && echo "RAM and $SESSION_DIR" || echo "RAM only" )
-    Lane     $( [[ -n "${TF_INKLING2_COMPUTE_LANE:-}" && "${TF_INKLING2_COMPUTE_LANE}" != 0 ]] && echo "compute lane on (TF_INKLING2_COMPUTE_LANE=$TF_INKLING2_COMPUTE_LANE)" || echo "off" )
+    Lane     $( [[ -n "${TF_INKLING2_COMPUTE_LANE:-}" && "${TF_INKLING2_COMPUTE_LANE}" != 0 ]] && echo "compute lane on$( [[ "${TF_INKLING2_RUNNER:-0}" != 0 ]] && echo ", in-model runner on")" || echo "off" )
     Logs     docker logs -f $CONTAINER_NAME
     Restart  ./start.sh restart
     Stop     ./stop.sh

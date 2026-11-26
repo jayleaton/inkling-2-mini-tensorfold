@@ -56,13 +56,20 @@ XGRAMMAR_REF=97787376faee5ed8466cfad57c99855e4ce2f6aa
 # -Dnative-fp-decode: the FP4/FP8 expert and projection kernels (qmmf, prompt16, fp8_experts) decode their codes
 # with PTX ISA 9.2's native cvt instructions on sm_121a (nvcc 13.2+). NATIVE_FP_DECODE=0 builds the generic decode.
 NATIVE_FP_DECODE="${NATIVE_FP_DECODE:-1}"
+# RUNNER=1 adds the in-model runner layer the tool-full profile needs (COMPUTE_LANE=tool-full sets it): the circuit
+# frontend's boot check, clang-18 and lld-18 for its RV32 programs, and the runner circuit and graph bank
+# (config/runner-assets.*, ~172 MB, downloaded and sha256-checked by scripts/runner_assets.py). A separate image tag.
+RUNNER="${RUNNER:-$([[ "${COMPUTE_LANE:-0}" == tool-full ]] && echo 1 || echo 0)}"
+[[ "$RUNNER" =~ ^[01]$ ]] || { echo "RUNNER is 0 or 1, not $RUNNER" >&2; exit 1; }
 TF_TAG="c4-${TF_REF:0:7}"
+if [[ "$RUNNER" == 1 ]]; then TF_TAG="$TF_TAG-runner"; fi
 IMAGE="${IMAGE:-tensorfold-inkling2:${TF_TAG}}"
 image_hash() {
   ( cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
     cat patches/*.patch 2>/dev/null
     sed -n "/<<'DOCKERFILE'/,/^DOCKERFILE\$/p" scripts/prepare.sh
     echo "$TF_REPO $TF_REF zig-$ZIG_VERSION $ZIG_SHA256 $BASE_IMAGE xgrammar-$XGRAMMAR_TAG-$XGRAMMAR_REF native-fp-$NATIVE_FP_DECODE"
+    if [[ "$RUNNER" == 1 ]]; then cat config/runner-assets.release config/runner-assets.sha256; fi
   ) | sha256sum | cut -c1-12
 }
 CONTAINER_NAME="${CONTAINER_NAME:-inkling2-mini-tf}"
@@ -83,6 +90,9 @@ SESSION_DIR="${SESSION_DIR:-$HOME/.cache/tensorfold-inkling2/sessions}"
 # sandbox (Landlock and seccomp, no network, python3 in the image) and its result goes back into the same reply as
 # Inkling's tool turn, without a client round trip. It sets TF_INKLING2_COMPUTE_LANE=1 in the container unless that is
 # set already; every TF_INKLING2_COMPUTE_LANE_* knob (_WORKERS, _MAX_MS, _MEM_MB, _CPUS, _DEFAULT, ...) passes through.
+# COMPUTE_LANE=tool-full also turns on the in-model runner (patches 0025-0026, the RUNNER=1 image): the model's code
+# cells inside its thinking are run on the runner circuit, and code_interpreter calls run on it first, in the sandbox
+# when it abstains (start.sh sets the profile's TF_INKLING2_RUNNER* and _COMPUTE_LANE_RUNNER* knobs unless set).
 # Off (the default), replies are exactly as without the lane patches.
 COMPUTE_LANE="${COMPUTE_LANE:-0}"
 MAX_TOKENS="${MAX_TOKENS:-32768}"

@@ -1,0 +1,172 @@
+diff --git a/zig/src/core/engine_api.zig b/zig/src/core/engine_api.zig
+index 8d9b01b11..a14542427 100644
+--- a/zig/src/core/engine_api.zig
++++ b/zig/src/core/engine_api.zig
+@@ -250,6 +250,7 @@ pub const Info = struct {
+     compute: ?compute_lane.Config = null, // the family's built-in code execution: replies hold at EOS for its results
+     runner: ?*runner.Runner = null, // the in-model runner: the server gives it the tokenizer and chats set run_cells
+     compute_runner: ?compute_circuit.Setup = null, // S3: lane calls the circuit can run go there (compute_circuit.zig)
++    runner_cpus: ?*const fn (set: *runner.place.Set) void = null, // CPUs the engine's own threads pin to: runners avoid them
+ 
+     pub const Capability = @import("engine_capabilities.zig").Capability;
+ 
+@@ -457,6 +458,8 @@ pub const Engine = struct {
+         encode_voice: ?*const fn (ctx: *anyopaque, gpa: Allocator, wav: []const u8) EncodeVoiceError![][10]i32 = null,
+         /// Continues a ``hold_eos`` request held at its EOS, once; an id that is not held is ignored.
+         resume_held: ?*const fn (ctx: *anyopaque, id: Id, r: Resume) void = null,
++        /// Runs the code cells of later ``run_cells`` replies on `r` (it outlives the engine); null: no runner here.
++        runner: ?*const fn (ctx: *anyopaque, r: *runner.Runner) void = null,
+     };
+ 
+     pub fn info(e: Engine) Info {
+@@ -489,6 +492,12 @@ pub const Engine = struct {
+     pub fn cancel(e: Engine, id: Id) void {
+         e.vtable.cancel(e.ctx, id);
+     }
++    /// Hands the engine the server's in-model runner; false when it runs none (``Info.runner`` stays unset).
++    pub fn attachRunner(e: Engine, r: *runner.Runner) bool {
++        const f = e.vtable.runner orelse return false;
++        f(e.ctx, r);
++        return true;
++    }
+     pub fn resumeHeld(e: Engine, id: Id, r: Resume) bool {
+         const f = e.vtable.resume_held orelse return false;
+         f(e.ctx, id, r);
+diff --git a/zig/src/core/lane_host.zig b/zig/src/core/lane_host.zig
+index 02343960e..eb258cc05 100644
+--- a/zig/src/core/lane_host.zig
++++ b/zig/src/core/lane_host.zig
+@@ -176,6 +176,7 @@ pub const LaneHost = struct {
+         .submit = submitFn,
+         .cancel = cancelFn,
+         .resume_held = holds.resumeFn,
++        .runner = runnerFn,
+         .status = status.read,
+         .memory = memoryFn,
+         .keepalive = keepaliveFn,
+@@ -207,6 +208,15 @@ pub const LaneHost = struct {
+         return @ptrCast(@alignCast(ctx));
+     }
+ 
++    /// The server's runner (Engine.attachRunner): replies that set run_cells run their cells on it from now on.
++    fn runnerFn(ctx: *anyopaque, r: *@import("runner.zig").Runner) void {
++        const h = self(ctx);
++        h.lock();
++        defer h.unlock();
++        h.runner = r;
++        h.info_.runner = r;
++    }
++
+     fn infoFn(ctx: *anyopaque) Info {
+         return self(ctx).info_;
+     }
+diff --git a/zig/src/core/runner_frontend_boot_main.zig b/zig/src/core/runner_frontend_boot_main.zig
+index 96257d0a9..363f71a50 100644
+--- a/zig/src/core/runner_frontend_boot_main.zig
++++ b/zig/src/core/runner_frontend_boot_main.zig
+@@ -70,11 +70,15 @@ fn environment(env: *const std.process.Environ.Map) Options {
+     var options: Options = .{};
+     if (env.get("TF_RUNNER_CLANG")) |path| options.config.compiler.clang = path;
+     options.config.compiler.linker = env.get("TF_RUNNER_LLD");
+-    const value = env.get("TF_RUNNER") orelse "";
+-    options.config.required = value.len != 0 and !std.mem.eql(u8, value, "0") and
++    // the server's runner knob: TF_INKLING2_RUNNER for Inkling 2's reply format, TF_RUNNER for any other
++    options.config.required = requested(env.get("TF_RUNNER") orelse "") or requested(env.get("TF_INKLING2_RUNNER") orelse "");
++    return options;
++}
++
++fn requested(value: []const u8) bool {
++    return value.len != 0 and !std.mem.eql(u8, value, "0") and
+         !std.ascii.eqlIgnoreCase(value, "false") and !std.ascii.eqlIgnoreCase(value, "off") and
+         !std.ascii.eqlIgnoreCase(value, "no");
+-    return options;
+ }
+ 
+ fn parseWith(args: []const [:0]const u8, initial: Options) error{InvalidArguments}!Options {
+@@ -123,13 +127,16 @@ test "environment enables fail closed only for a requested runner" {
+     var env = std.process.Environ.Map.init(std.testing.allocator);
+     defer env.deinit();
+     try std.testing.expect(!environment(&env).config.required);
+-    for ([_][]const u8{ "", "0", "false", "off", "no", "FALSE" }) |value| {
+-        try env.put("TF_RUNNER", value);
+-        try std.testing.expect(!environment(&env).config.required);
+-    }
+-    for ([_][]const u8{ "1", "true", "on", "yes", "invalid" }) |value| {
+-        try env.put("TF_RUNNER", value);
+-        try std.testing.expect(environment(&env).config.required);
++    for ([_][]const u8{ "TF_RUNNER", "TF_INKLING2_RUNNER" }) |name| {
++        for ([_][]const u8{ "", "0", "false", "off", "no", "FALSE" }) |value| {
++            try env.put(name, value);
++            try std.testing.expect(!environment(&env).config.required);
++        }
++        for ([_][]const u8{ "1", "true", "on", "yes", "invalid" }) |value| {
++            try env.put(name, value);
++            try std.testing.expect(environment(&env).config.required);
++        }
++        try env.put(name, "0");
+     }
+     try env.put("TF_RUNNER_CLANG", "/missing/compiler");
+     try env.put("TF_RUNNER_LLD", "/missing/linker");
+diff --git a/zig/src/server/compute_turns.zig b/zig/src/server/compute_turns.zig
+index 186ecbb29..af8d1de47 100644
+--- a/zig/src/server/compute_turns.zig
++++ b/zig/src/server/compute_turns.zig
+@@ -29,7 +29,7 @@ pub fn fromEnv(srv: *const Server) error{BadKnob}!?lane.Config {
+     return lane.Config.parse(&env, "TF_COMPUTE_LANE");
+ }
+ 
+-fn env(key: []const u8) ?[]const u8 {
++pub fn env(key: []const u8) ?[]const u8 {
+     var buf: [64]u8 = undefined;
+     if (key.len >= buf.len) return null;
+     @memcpy(buf[0..key.len], key);
+diff --git a/zig/src/server/runner_boot.zig b/zig/src/server/runner_boot.zig
+new file mode 100644
+index 000000000..a665f9f50
+--- /dev/null
++++ b/zig/src/server/runner_boot.zig
+@@ -0,0 +1,32 @@
++//! The in-model runner and S3 the family left unset: TF_INKLING2_ knobs for Inkling 2's replies, TF_ for any other.
++const std = @import("std");
++const api = @import("engine_api");
++const Server = @import("server.zig").Server;
++const env = @import("compute_turns.zig").env;
++
++/// Opens what the environment asks; unset, nothing opens and replies run no cells.
++pub fn open(srv: *Server) !void {
++    if (srv.text.vtable.format == .inkling) return openWith(srv, "TF_INKLING2_");
++    return openWith(srv, "TF_");
++}
++
++fn openWith(srv: *Server, comptime prefix: []const u8) !void {
++    if (srv.info.runner == null) if (try api.runner.Config.parse(&env, prefix ++ "RUNNER")) |parsed| {
++        var rc = parsed;
++        rc.place.engine = srv.info.runner_cpus; // PREFIX_RUNNER_CPUS=auto keeps the runner's threads off these
++        const r = try api.runner.open(srv.gpa, rc);
++        if (!srv.engine.attachRunner(r)) {
++            std.log.err("{s}RUNNER: this engine cannot run a reply's code cells (no lane host)", .{prefix});
++            return error.RunnerUnsupported;
++        }
++        srv.info.runner = r;
++    };
++    // S3: lane calls the frontend takes run on the circuit, shared with the runner above when it names the same files
++    if (srv.info.compute != null and srv.info.compute_runner == null) if (try api.runner.Config.parse(&env, prefix ++ "COMPUTE_LANE_RUNNER")) |parsed| {
++        const cfg = try api.compute_circuit.Config.parse(&env, prefix ++ "COMPUTE_LANE_RUNNER");
++        var rc = parsed;
++        rc.place.engine = srv.info.runner_cpus;
++        rc.compile = cfg.elf;
++        srv.info.compute_runner = .{ .runner = try api.runner.openSharing(srv.gpa, rc, srv.info.runner), .cfg = cfg };
++    };
++}
+diff --git a/zig/src/server/server.zig b/zig/src/server/server.zig
+index 07b505826..5510d677f 100644
+--- a/zig/src/server/server.zig
++++ b/zig/src/server/server.zig
+@@ -227,6 +227,7 @@ pub const Server = struct {
+         }
+         if (srv.info.compute == null) srv.info.compute = try @import("compute_turns.zig").fromEnv(srv);
+         if (srv.info.compute) |c| srv.compute = try @import("compute_turns.zig").open(srv, c);
++        try @import("runner_boot.zig").open(srv);
+         if (srv.compute != null) if (srv.info.compute_runner) |s| {
+             srv.compute_exec = .init(s);
+             std.log.info("compute lane: calls the circuit can run run there (in-model runner), the rest in the sandbox (code tool){s}", .{if (s.cfg.verify) "; verify: the sandbox's result is inserted" else ""});
