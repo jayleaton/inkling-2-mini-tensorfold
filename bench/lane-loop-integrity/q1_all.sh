@@ -4,6 +4,7 @@
 #     X-sums S-sums   the lane cases with state sums
 #     X-ref S-ref     each of that run's histories again, its prompt pass through the decode rows (REF_DRAFTER)
 #     X-plant         case 1 with a conv bit flipped (PLANT=<visit>@<position>)
+#   X-disk S-disk     arm D again on that phase's arm A histories
 # A phase's failed checks do not stop the next phase; every phase leaves <out>/<phase>/{rows.jsonl,ids/,log,exit}.
 set -uo pipefail
 kit=$(cd "$(dirname "$0")" && pwd)
@@ -26,8 +27,16 @@ for phase in "$@"; do
       boot "$phase" dflash2 "$sessions" || { echo "boot failed" > "$dir/exit"; continue; }
       python3 "$kit/q1.py" lane --out "$dir" >> "$dir/log" 2>&1 || status=1
       python3 "$kit/q1.py" control --out "$dir" >> "$dir/log" 2>&1 || status=1
-      python3 "$kit/q1.py" disk --out "$dir" --cases 2,7 --samplers greedy,t07 \
+      python3 "$kit/q1.py" disk --out "$dir" --cases 2,7 --samplers greedy,t07 --sessions "$sessions" \
         --restart "KERNELS=$phase DRAFTER=dflash2 SESSIONS=$sessions ARM=L RUN_DIR=$dir $kit/boot.sh" >> "$dir/log" 2>&1 || status=1
+      ;;
+    X-disk|S-disk)
+      k=${phase%%-*}
+      mkdir -p "$dir/ids"
+      cp "$out/$k/ids/"[0-9]*.json "$dir/ids/"
+      boot "$k" dflash2 "$sessions" || { echo "boot failed" > "$dir/exit"; continue; }
+      python3 "$kit/q1.py" disk --out "$dir" --cases 2,7 --samplers greedy,t07 --sessions "$sessions" \
+        --restart "KERNELS=$k DRAFTER=dflash2 SESSIONS=$sessions ARM=L RUN_DIR=$dir $kit/boot.sh" >> "$dir/log" 2>&1 || status=1
       ;;
     S0)
       boot S0 dflash2 "$sessions" || { echo "boot failed" > "$dir/exit"; continue; }
@@ -57,7 +66,7 @@ for phase in "$@"; do
       ;;
     *) echo "unknown phase $phase" >&2; exit 2 ;;
   esac
-  "$kit/boot.sh" stop
+  RUN_DIR="$dir" "$kit/boot.sh" stop
   echo "$status" > "$dir/exit"
 done
 date -u +%Y-%m-%dT%H:%M:%SZ > "$out/done.$(printf '%s' "$*" | tr ' ' '+')"

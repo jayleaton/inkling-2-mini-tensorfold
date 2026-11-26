@@ -445,11 +445,21 @@ def control(run, samplers):
     return run.bad
 
 
-def restart(command):
+def restart(command, sessions):
+    """Waits for the idle engine to write its kept states, restarts it, and returns the state files before and after."""
+    def states():
+        return sum(name.endswith(".st") for _, _, names in os.walk(sessions) for name in names) if sessions else None
+    last = -1
+    for _ in range(20):
+        time.sleep(3)
+        if states() == last:
+            break
+        last = states()
     subprocess.run(command, shell=True, check=True, stdout=subprocess.DEVNULL)
+    return [last, states()]
 
 
-def disk(run, cases, samplers, command):
+def disk(run, cases, samplers, command, sessions):
     """Arm D: the container restarts between two rounds, so the later one resumes from the session folder."""
     for sampler in samplers:
         for case in cases:
@@ -463,8 +473,8 @@ def disk(run, cases, samplers, command):
             middle = max(1, len(rounds) // 2)
             lli.flush()
             client_rounds(run, "D", case, sampler, a["messages"], a["prompt"], segs, last=middle, cached_from=None)
-            time.sleep(3)
-            restart(command)
+            kept = restart(command, sessions)
+            run.row("D.states", True, case=case, sampler=sampler, state_files_before_and_after_restart=kept)
             client_rounds(run, "D.after-restart", case, sampler, a["messages"], a["prompt"], segs, first=middle, cached_from=middle)
             # a second lane turn on a conversation whose first lane turn is resumed from the disk after a restart
             first = a["messages"]
@@ -475,11 +485,11 @@ def disk(run, cases, samplers, command):
             fresh = lli.ids_of(lli.chat(second, sampler, MAX_TOKENS, tools=lli.LANE_TOOLS))
             lli.flush()
             lli.chat(first, sampler, MAX_TOKENS, tools=lli.LANE_TOOLS)
-            time.sleep(3)
-            restart(command)
+            kept = restart(command, sessions)
             again = lli.chat(second, sampler, MAX_TOKENS, tools=lli.LANE_TOOLS)
             cached = lli.cached_of(again)
-            run.equal("D.second-lane-turn", lli.ids_of(again), fresh, case=case, sampler=sampler, cached=cached)
+            run.equal("D.second-lane-turn", lli.ids_of(again), fresh, case=case, sampler=sampler, cached=cached,
+                      state_files_before_and_after_restart=kept)
             if cached == 0:
                 run.row("D.second-lane-turn.cached", False, case=case, sampler=sampler, cached=0, why="nothing came from the disk")
     return run.bad
@@ -510,6 +520,7 @@ def main():
     ap.add_argument("--sums")
     ap.add_argument("--light", action="store_true", help="skip the concurrent variants")
     ap.add_argument("--restart")
+    ap.add_argument("--sessions", help="the engine's session folder on this host (arm D waits for its state files)")
     args = ap.parse_args()
     run = Run(args.out, args.sums)
     cases = [int(c) for c in args.cases.split(",")]
@@ -521,7 +532,7 @@ def main():
     elif args.mode == "ref":
         bad = ref(run, args.source, cases, samplers)
     else:
-        bad = disk(run, cases, samplers, args.restart)
+        bad = disk(run, cases, samplers, args.restart, args.sessions)
     print(f"SUMMARY failed_checks={bad}")
     sys.exit(1 if bad else 0)
 

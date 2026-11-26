@@ -25,6 +25,8 @@ KCACHE="${KCACHE:-$HOME_DIR/.cache/tensorfold-inkling2/43e0fb792314}"
 stop() {
   docker inspect "$NAME" >/dev/null 2>&1 || return 0
   docker stop -t 30 "$NAME" >/dev/null
+  mkdir -p "$RUN_DIR"
+  docker logs "$NAME" > "$RUN_DIR/$(date -u +%Y%m%dT%H%M%SZ)-$NAME.log" 2>&1 || true
   docker rm "$NAME" >/dev/null
 }
 
