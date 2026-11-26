@@ -13,11 +13,12 @@
 #   DRAFTS=0 ./start.sh restart        # no drafter (--no-drafts)
 #   DRAFTER=dspark ./start.sh restart  # the checkpoint's own DSpark head instead of DFlash2
 #   VISION=0 ./start.sh restart        # text only: no vision tower (saves ~0.6 GiB)
+#   COMPUTE_LANE=1 ./start.sh restart  # run the model's code_interpreter calls in a sandbox, inside the reply
 #   DRY_RUN=1 ./start.sh               # print the docker command and exit
 # Extra arguments go to tensorfold-native serve after the defaults, so they win.
 # Settings, from the environment or ./.env (scripts/config.sh):
 #   serving  CONTEXT, PARALLEL, MAX_TOKENS, THINKING, REASONING_EFFORT, DRAFTS, DRAFTER, VISION, VISION_URLS, PROMPT_CACHE_DISK,
-#            VISION_MAX_IMAGES, VISION_IMAGE_TOKENS, TEMPERATURE, TOP_P, TOP_K, SERVED_NAME, HOST, PORT
+#            COMPUTE_LANE, VISION_MAX_IMAGES, VISION_IMAGE_TOKENS, TEMPERATURE, TOP_P, TOP_K, SERVED_NAME, HOST, PORT
 #   files    MODEL_DIR, DRAFTER_DIR, KERNEL_CACHE, STATE_DIR, SESSION_DIR
 #   image    IMAGE, TF_REPO, TF_REF, ZIG_VERSION, BASE_IMAGE, NATIVE_FP_DECODE, CONTAINER_NAME
 #   setup    PREPARE (auto | 1 | 0), FOREGROUND=1, WAIT_TIMEOUT, DRY_RUN=1, MEM_NEED_GIB, MEM_CHECK=0
@@ -39,7 +40,7 @@ for arg in "$@"; do [[ "$arg" == -h || "$arg" == --help ]] && { usage; exit 0; }
 [[ "$CONTEXT" =~ ^[1-9][0-9]*$ && "$CONTEXT" -le 1048576 ]] || die "CONTEXT is a token count up to 1048576 (the model's window), not $CONTEXT"
 [[ "$PARALLEL" =~ ^([1-9]|1[0-6])$ ]] || die "PARALLEL is 1 to 16, not $PARALLEL"
 [[ "$MAX_TOKENS" =~ ^[1-9][0-9]*$ ]] || die "MAX_TOKENS is a token count, not $MAX_TOKENS"
-for v in THINKING DRAFTS VISION VISION_URLS PROMPT_CACHE_DISK; do [[ "${!v}" =~ ^[01]$ ]] || die "$v is 0 or 1, not ${!v}"; done
+for v in THINKING DRAFTS VISION VISION_URLS PROMPT_CACHE_DISK COMPUTE_LANE; do [[ "${!v}" =~ ^[01]$ ]] || die "$v is 0 or 1, not ${!v}"; done
 [[ -z "$REASONING_EFFORT" || "$REASONING_EFFORT" =~ ^(none|minimal|low|medium|high|xhigh|max|0(\.[0-9]+)?)$ ]] ||
   die "REASONING_EFFORT is none, minimal, low, medium, high, xhigh, max or a number in [0, 0.99], not $REASONING_EFFORT"
 DRY=0; [[ "${DRY_RUN:-0}" == 1 ]] && DRY=1
@@ -174,6 +175,7 @@ else
 fi
 
 SESSION_MOUNT=(); [[ "$PROMPT_CACHE_DISK" == 1 ]] && SESSION_MOUNT=(-v "$SESSION_DIR":/sessions)
+[[ "$COMPUTE_LANE" == 1 && -z "${TF_INKLING2_COMPUTE_LANE:-}" ]] && export TF_INKLING2_COMPUTE_LANE=1
 ENV_ARGS=()
 while IFS='=' read -r name _; do
   [[ "$name" == TENSORFOLD_API_KEY ]] && continue
@@ -275,6 +277,7 @@ cat <<EOF
     Model    $MODEL_DIR ($QUANT_LABEL)
     Window   $(arg_value --context) tokens · $(arg_value --parallel) at once · $KV_DTYPE KV · drafts $(drafts_label)
     States   $( [[ "$PROMPT_CACHE_DISK" == 1 ]] && echo "RAM and $SESSION_DIR" || echo "RAM only" )
+    Lane     $( [[ -n "${TF_INKLING2_COMPUTE_LANE:-}" && "${TF_INKLING2_COMPUTE_LANE}" != 0 ]] && echo "compute lane on (TF_INKLING2_COMPUTE_LANE=$TF_INKLING2_COMPUTE_LANE)" || echo "off" )
     Logs     docker logs -f $CONTAINER_NAME
     Restart  ./start.sh restart
     Stop     ./stop.sh

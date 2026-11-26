@@ -207,7 +207,7 @@ three of the defaults:
 | Structured output, forced tool calls | `0013` | HTTP 500 ("serves only unconstrained, non-branching text drafts") for `json_schema`, `json_object`, `guided_*` and `tool_choice` required or named |
 
 Mia's patches do not port onto main cheaply: 17 of the 18 edit Jürgen's `mini_*.zig` files, which main replaced with `loop_*.zig`. The
-compute lanes below live in TensorFold's shared lane host and HTTP server, which `dc2ca8a1` shares with main up to their 2026-11-21 fork
+compute lane (`0020`–`0024`) lives in TensorFold's shared lane host and HTTP server, which `dc2ca8a1` shares with main up to their 2026-11-21 fork
 point.
 
 Measured on one Spark on 2026-11-26 (2 × 131,072, the same checkpoint; receipts and method in
@@ -270,6 +270,7 @@ All defaults live in [`scripts/config.sh`](scripts/config.sh). Override them fro
 | `CONTEXT` | `131072` | prompt + reply window a stream (up to `1048576`) |
 | `PROMPT_CACHE_DISK` | `1` | `1`: keep prompt and conversation states on disk too (`--prompt-cache-disk /sessions`); `0`: RAM only |
 | `SESSION_DIR` | `$HOME/.cache/tensorfold-inkling2/sessions` | the disk states' folder (put it on the NVMe), mounted at `/sessions` |
+| `COMPUTE_LANE` | `0` | `1`: the compute lane (`TF_INKLING2_COMPUTE_LANE=1`, see [Compute lane](#compute-lane)) |
 | `KV_DTYPE` | `fp8` | target KV cache: `fp8` or `bf16` (exact) |
 | `DRAFTS` | `1` | `1`: draft with `DRAFTER`; `0`: `--no-drafts` |
 | `DRAFTER` | `dflash2` | `dflash2`: the DFlash2 draft model (`--drafter /models/draft`); `dspark`: the checkpoint's DSpark head (`--drafter /models/ink`) |
@@ -301,8 +302,45 @@ All defaults live in [`scripts/config.sh`](scripts/config.sh). Override them fro
   `"chat_template_kwargs": {"reasoning_effort": "low"}` adjusts it.
 - **Exact serial reference:** `"draft": false` on any request turns drafting off. Drafted replies match `"draft": false` token for token.
 - **Admission:** when all `PARALLEL` slots are full, new requests are rejected rather than queued.
+- **Calls to tools not offered** (`0024`): a whole call block to a plain function name with object arguments goes out as a tool call even
+  when the request did not offer that tool, as vLLM returns it, so the client can answer that it has no such tool. With
+  `tool_choice: "none"` or no tools offered it stays content; `TF_TOOL_CALL_GUARD=1` hides such calls instead.
 
-## Patches (`patches/0001`–`0019`)
+## Compute lane
+
+Off by default. With `COMPUTE_LANE=1` (`TF_INKLING2_COMPUTE_LANE=1`), a request that offers the `code_interpreter` tool has the model's
+calls to it run by the server rather than the client:
+
+1. The engine holds the stream at the call block's end-of-sampling token instead of finishing it.
+2. The server runs the call's `code` in a sandboxed `python3` (Landlock and seccomp, no network, a memory and time cap, a fresh
+   directory) and renders the result as Inkling's own tool turn (a `<|message_tool|>` turn under the tool's name, as the chat template writes
+   it).
+3. Those tokens are forced into the same stream, and the model goes on with its answer. The client gets one reply, with the call and its
+   result in it.
+
+A request without `code_interpreter` in `tools`, or with any `stop` strings, is served exactly as with the lane off. Knobs (all
+`TF_INKLING2_COMPUTE_LANE_*`, passed into the container):
+
+| Knob | Default | Meaning |
+| --- | --- | --- |
+| `TF_INKLING2_COMPUTE_LANE` | unset | `1` turns the lane on (`COMPUTE_LANE=1` sets it) |
+| `_DEFAULT` | `0` | `1`: every thinking chat gets `code_interpreter`, whatever it sends (not with `stop`, `logprobs`, structured output or `max_tokens` under 1,024) |
+| `_WORKERS` | `2` | sandboxes running at once |
+| `_MAX_MS` / `_MEM_MB` | `10000` / `1024` | a call's wall time and memory cap |
+| `_MAX_CALLS` / `_MAX_RESULT_TOKENS` | `8` / `512` | calls a reply, and a result's length before it is cut |
+| `_CPUS` / `_PYTHON` | unset / `/usr/bin/python3` | the sandboxes' CPU list, and the interpreter (NVIDIA's container ships one) |
+
+**Where the lane lives.** Everything but the sandbox is backend-agnostic: the hold is a field of the engine's request
+(`Request.hold_eos`), the resume is an `engine_api` entry the shared lane host implements (`resume_held`), and the parsing, the tool turn
+and the forcing live in the HTTP server (`compute_turns.zig`, `compute_segments.zig`). No `mini_*.zig` file changes, so a Metal build gets the
+same lane from the same patches. The sandbox (`compute_sandbox.zig`) needs Linux's Landlock and seccomp. Elsewhere it reports "Linux only",
+the boot self-test (`print(1+1)` in the sandbox) fails, and the server refuses to start with the lane on. The same self-test fails the boot
+when a container's seccomp profile blocks Landlock.
+
+**Against TensorFold main** (`920fe22c`): only `0020` (the sandbox) applies as is. `0021`–`0023` need main's later `engine_api.zig` and
+`lane_host.zig`, and `0024` patches `inkling_reply.zig`, which main does not have: its Inkling replies go through `loop_*` code.
+
+## Patches (`patches/0001`–`0024`)
 
 Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 
@@ -318,6 +356,9 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 | `0017` | Server fixes: the reply grammar is freed when a stream fails to start (`lane_stream.zig`); opt-in `TF_TOOL_CALL_GUARD=1` and rejected tool-envelope logs (`TF_TOOL_CALL_DEBUG=1`); `--vision-max-images` up to 100; `--dashboard-open` |
 | `0018` | DFlash2 drafter (`mini_dflash.zig`, `inkling2/dflash.cu`): `--drafter` on a DFlash2 folder loads it in place of DSpark. Committed taps go through `fc` and the hidden norm into 5 layers' 2,048-position K/V rings; one pass embeds the pending token and 7 masks and runs the two-tap dynamic convs, non-causal block attention and SwiGLU (layers as FP8 copies); an NVFP4 copy of the target head gives each row's top 16, and a GPU candidate selector walks the path (keyed draws for sampled requests). A stream alone gives the round planner each draft's chance, the selector's probability calibrated by what landed. After TensorFold's GLM-5.3-Flash CUDA DFlash2 and [tonyd2wild](https://github.com/tonyd2wild)'s [Inkling DFlash2 patch](https://github.com/tonyd2wild/Inkling-2-Mini-NVFP4-DGX-Spark) |
 | `0019` | Prompt and conversation states on disk (`--prompt-cache-disk`, CUDA): `mini_disk.zig` describes `mini_snap`'s states to TensorFold's kept-state disk store (`native/cuda_kept.zig`): whole caches as rows from position 0, sliding rings as their tails, conv states, a blank state to read into, and the KV form the store's key binds |
+| `0020`–`0022` | The compute lane's sandboxed executor (`core/compute_sandbox.zig`: Landlock, seccomp, rlimits, kept niceness above 10, the `__compute_sandbox` trampoline) and the engine half: `Request.hold_eos`, `resume_held` in the shared lane host, held results forced in as prompt tokens. Ported from the DeepSeek V4.1 Spark kit's patches 0197–0201 |
+| `0023` | The compute lane for any lane-hosted family, read from the reply format: Inkling 2's call blocks (`chat_inkling.read`), its tool turn rendered by name from the chat template, `TF_INKLING2_COMPUTE_LANE*` |
+| `0024` | Inkling 2: a call to a tool the request did not offer goes out as a tool call, as vLLM returns it (after the DeepSeek kit's 0206–0207) |
 
 ## Tools
 
@@ -340,7 +381,7 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 start.sh      set up (first run) and start the server
 stop.sh       stop it
 scripts/      config.sh, prepare.sh, fetch.sh, banner.sh
-patches/      0001–0019 applied onto TensorFold at TF_REF
+patches/      0001–0024 applied onto TensorFold at TF_REF
 tools/        verification scripts
 CREDITS.md    upstream credits
 NOTICE        third-party notices
@@ -371,6 +412,8 @@ libjpeg-turbo and libwebp, which it builds.
     vLLM.
 
   Benchmarked with [sparkDash](https://github.com/MiaAI-Lab/sparkDash/).
+- **Spark defaults, states on disk (`0019`) and the compute lane (`0020`–`0024`):** by [jayleaton](https://github.com/jayleaton) on Mia's
+  recipe; the lane is ported from the DeepSeek V4.1 Spark kit.
 - **Engine:** [TensorFold](https://github.com/ashhart/TensorFold) and `tensorfold-native` by Ash Hart ([ashhart](https://github.com/ashhart))
   and contributors.
 - **Inkling 2 Mini on CUDA:**

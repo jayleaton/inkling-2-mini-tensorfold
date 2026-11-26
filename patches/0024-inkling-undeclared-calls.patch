@@ -1,0 +1,113 @@
+diff --git a/zig/src/server/inkling_reply.zig b/zig/src/server/inkling_reply.zig
+index 073ce1c5b..adf8e76c9 100644
+--- a/zig/src/server/inkling_reply.zig
++++ b/zig/src/server/inkling_reply.zig
+@@ -170,17 +170,38 @@ pub fn thinkingTokens(text: anytype, ids: []const u32) usize {
+     return n;
+ }
+ 
+-/// A tool block's `{"name": ..., "args": {...}}` naming an offered tool, under its spelling; null for anything else.
++/// A tool block's `{"name": ..., "args": {...}}` naming an offered tool, under its spelling; else, as vLLM returns it,
++/// a function name the request did not declare with object arguments (a request with tools); null for anything else.
+ fn call(a: std.mem.Allocator, payload: []const u8, offered: []const json.Value) !?Call {
+     var doc = std.json.parseFromSlice(std.json.Value, a, payload, .{}) catch return null;
+     defer doc.deinit();
+     if (doc.value != .object) return null;
+     const n = doc.value.object.get("name") orelse return null;
+     if (n != .string) return null;
+-    var known = try tool_parse.knownNames(a, offered);
+-    const own = try tool_parse.callName(a, n.string, &known) orelse return null;
+     const args = json_cut.find(try json_cut.members(a, std.mem.trimStart(u8, payload, " \t\r\n")), "args");
+-    return .{ .name = own, .arguments = try a.dupe(u8, if (args) |m| m.value else "{}") };
++    const written = if (args) |m| m.value else "{}";
++    var known = try tool_parse.knownNames(a, offered);
++    const own = try tool_parse.callName(a, n.string, &known) orelse undeclared: {
++        // the client refuses the unknown tool and the model can retry; kept as text, the call ended the client's turn
++        const bare = std.mem.trim(u8, n.string, " \t\r\n");
++        if (offered.len == 0 or !functionName(bare) or !objectText(a, written)) return null;
++        break :undeclared bare;
++    };
++    return .{ .name = own, .arguments = try a.dupe(u8, written) };
++}
++
++/// 1 to 64 of `[A-Za-z0-9_-]`: a name OpenAI's API accepts for a function.
++fn functionName(text: []const u8) bool {
++    if (text.len == 0 or text.len > 64) return false;
++    for (text) |ch| if (!(std.ascii.isAlphanumeric(ch) or ch == '_' or ch == '-')) return false;
++    return true;
++}
++
++/// Whether `text` is a JSON object (JSON holds no NaN or infinity, so it is finite).
++fn objectText(a: std.mem.Allocator, text: []const u8) bool {
++    var doc = std.json.parseFromSlice(std.json.Value, a, text, .{}) catch return false;
++    defer doc.deinit();
++    return doc.value == .object;
+ }
+ 
+ /// The name of a cut tool block, when its payload already holds a whole top-level "name" string.
+@@ -312,7 +333,7 @@ test "inkling2 reply: a stream fed a byte at a time splits each prefix as the wh
+     }
+ }
+ 
+-test "inkling2 reply: a call takes the offered spelling, and a call to a tool not offered stays content" {
++test "inkling2 reply: a call takes the offered spelling; one to an undeclared tool goes out, unless no tool is offered" {
+     var arena = std.heap.ArenaAllocator.init(t.allocator);
+     defer arena.deinit();
+     const a = arena.allocator();
+@@ -320,11 +341,19 @@ test "inkling2 reply: a call takes the offered spelling, and a call to a tool no
+     const spelled = try split(a, block, true, try toolsT(a, "[{\"name\":\"Get_Weather\"}]"));
+     try t.expectEqual(@as(usize, 1), spelled.calls.len);
+     try t.expectEqualStrings("Get_Weather", spelled.calls[0].name);
+-    // a named tool_choice leaves only that tool offered (tool_specs.active), so a call to another one is content
+-    for ([_][]const u8{ "[{\"name\":\"send_mail\"}]", "[]" }) |list| {
+-        const r = try split(a, block, true, try toolsT(a, list));
++    // as vLLM: a whole call to a name the request did not declare is a call, under the name as written
++    const other = try split(a, block, true, try toolsT(a, "[{\"name\":\"send_mail\"}]"));
++    try t.expectEqual(@as(usize, 1), other.calls.len);
++    try t.expectEqualStrings("get_weather", other.calls[0].name);
++    // no tools offered, a name no function can have, or arguments that are not an object: content
++    const kept = [_]struct { tools: []const u8, block: []const u8 }{
++        .{ .tools = "[]", .block = block },
++        .{ .tools = "[{\"name\":\"send_mail\"}]", .block = "<|message_model|>x<|content_invoke_tool_json|>{\"name\":\"get weather\",\"args\":{}}<|end_message|>" },
++        .{ .tools = "[{\"name\":\"send_mail\"}]", .block = "<|message_model|>x<|content_invoke_tool_json|>{\"name\":\"lookup\",\"args\":[1]}<|end_message|>" },
++    };
++    for (kept) |c| {
++        const r = try split(a, c.block, true, try toolsT(a, c.tools));
+         try t.expectEqual(@as(usize, 0), r.calls.len);
+-        try t.expectEqualStrings("{\"name\":\" get_weather\",\"args\":{}}", r.content);
+     }
+ }
+ 
+diff --git a/zig/src/server/inkling_route_test.zig b/zig/src/server/inkling_route_test.zig
+index 24e94034a..9ae64cd3b 100644
+--- a/zig/src/server/inkling_route_test.zig
++++ b/zig/src/server/inkling_route_test.zig
+@@ -251,20 +251,21 @@ fn offer(comptime name: []const u8) []const u8 {
+     return "[{\"type\":\"function\",\"function\":{\"name\":\"" ++ name ++ "\",\"parameters\":{\"type\":\"object\"}}}]";
+ }
+ 
+-test "an Inkling 2 call takes the offered tool's spelling, and one to a tool not offered is content, whole and streamed" {
++test "an Inkling 2 call takes the offered tool's spelling, one to an undeclared tool goes out, none is content" {
+     var arena = std.heap.ArenaAllocator.init(t.allocator);
+     defer arena.deinit();
+     const a = arena.allocator();
+     for ([_]bool{ false, true }) |stream| {
+         const spelled = try post(a, try offering(a, comptime offer("Run_Shell_Command"), "", stream), stream);
+         try t.expectEqualStrings("Run_Shell_Command", spelled.names.items);
++        // as vLLM: the client answers that it has no such tool, and the model can call another
++        const other = try post(a, try offering(a, comptime offer("read_file"), "", stream), stream);
++        try t.expectEqualStrings("run_shell_command", other.names.items);
+         const none = ",\"tool_choice\":\"none\"";
+-        for ([_][]const u8{ try offering(a, comptime offer("read_file"), "", stream), try offering(a, comptime offer("run_shell_command"), none, stream) }) |body| {
+-            const got = try post(a, body, stream);
+-            try t.expectEqual(@as(usize, 0), got.ids.items.len);
+-            try t.expectEqualStrings(payload, got.content.items);
+-            try t.expectEqualStrings("stop", got.finish);
+-        }
++        const got = try post(a, try offering(a, comptime offer("run_shell_command"), none, stream), stream);
++        try t.expectEqual(@as(usize, 0), got.ids.items.len);
++        try t.expectEqualStrings(payload, got.content.items);
++        try t.expectEqualStrings("stop", got.finish);
+     }
+ }
+ 

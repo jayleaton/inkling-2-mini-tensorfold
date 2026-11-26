@@ -1,0 +1,170 @@
+diff --git a/zig/src/core/compute_lane_test.zig b/zig/src/core/compute_lane_test.zig
+index 0949526a6..eb2ab2cc7 100644
+--- a/zig/src/core/compute_lane_test.zig
++++ b/zig/src/core/compute_lane_test.zig
+@@ -59,6 +59,27 @@ test "compute sandbox: self test passes (Landlock and seccomp present)" {
+     try pool.selfTest(j.arena.allocator());
+ }
+ 
++test "compute sandbox: a job from a thread at nice 19 runs and keeps that niceness" {
++    try ready();
++    const Run = struct {
++        status: lane.Status = .unavailable,
++        out: []const u8 = "",
++        fn go(r: *@This(), j: *Job) void {
++            _ = linux.syscall3(.setpriority, 0, 0, 19); // this thread only: the job inherits it
++            const o = j.expectStatus(.{}, "import os\nos.nice(0)", .ok) catch return;
++            r.status = o.status;
++            r.out = o.stdout;
++        }
++    };
++    var j: Job = .{};
++    defer j.deinit();
++    var r: Run = .{};
++    const t = try std.Thread.spawn(.{}, Run.go, .{ &r, &j });
++    t.join();
++    try expectEqual(lane.Status.ok, r.status);
++    try expectEqualStrings("19\n", r.out);
++}
++
+ test "compute sandbox: final expression prints its repr" {
+     try ready();
+     var j: Job = .{};
+diff --git a/zig/src/core/compute_sandbox.zig b/zig/src/core/compute_sandbox.zig
+index af08a4a62..a6a1061b9 100644
+--- a/zig/src/core/compute_sandbox.zig
++++ b/zig/src/core/compute_sandbox.zig
+@@ -78,7 +78,9 @@ fn confine(argv: []const [:0]const u8) noreturn {
+     limit("RLIMIT_CORE", .CORE, 0);
+     limit("RLIMIT_NOFILE", .NOFILE, 64);
+     if (root) limit("RLIMIT_NPROC", .NPROC, 512);
+-    check("setpriority", linux.syscall3(.setpriority, 0, 0, 10));
++    // nice 10 at least, never less than the engine's own: lowering it needs a privilege the job no longer has
++    const inherited = 20 - @as(isize, @bitCast(linux.syscall2(.getpriority, 0, 0)));
++    if (inherited < 10) check("setpriority", linux.syscall3(.setpriority, 0, 0, 10));
+     if (job.cpus.len > 0) {
+         var set: [16]u64 = undefined;
+         if (!cpuList(job.cpus, &set)) die("cpu list", code(.INVAL));
+diff --git a/zig/src/core/engine_api.zig b/zig/src/core/engine_api.zig
+index a3e273284..0c26a22e3 100644
+--- a/zig/src/core/engine_api.zig
++++ b/zig/src/core/engine_api.zig
+@@ -248,6 +248,7 @@ pub const Info = struct {
+     ledger: ?Ledger = null,
+     /// --execution-witness: this engine's attestation of its supported path (null: an unsupported path).
+     witness: ?execution_witness.Source = null,
++    compute: ?compute_lane.Config = null, // the family's built-in code execution: replies hold at EOS for its results
+ 
+     pub const Capability = @import("engine_capabilities.zig").Capability;
+ 
+@@ -255,7 +256,6 @@ pub const Info = struct {
+     pub inline fn capability(i: Info, comptime key: Capability) bool {
+         return @import("engine_capabilities.zig").read(i, key);
+     }
+-    compute: ?compute_lane.Config = null, // the family's built-in code execution: replies hold at EOS for its results
+ 
+     /// What a lane engine's streams enforce themselves (core/lanes/stream.zig): loop guards and answer limits.
+     pub fn ofLanes(i: Info) Info {
+diff --git a/zig/src/server/chat_generation.zig b/zig/src/server/chat_generation.zig
+index 79d66c42f..060849129 100644
+--- a/zig/src/server/chat_generation.zig
++++ b/zig/src/server/chat_generation.zig
+@@ -293,9 +293,9 @@ pub const Generation = struct {
+                 }) g.wrote_ns = now;
+             }
+             const got = chunk orelse continue;
+-            _ = m.unread.fetchSub(@intCast(got.len), .monotonic); // written out: the lane host may run it again
+             const tokens = try g.skipInserted(got);
+             if (g.reason == null) try g.commit(tokens);
++            _ = m.unread.fetchSub(@intCast(got.len), .monotonic); // written out: the lane host may run it again
+             if (g.held) return;
+         }
+     }
+diff --git a/zig/src/server/compute_segments.zig b/zig/src/server/compute_segments.zig
+index d1e41cd42..c0ad7c59c 100644
+--- a/zig/src/server/compute_segments.zig
++++ b/zig/src/server/compute_segments.zig
+@@ -84,13 +84,13 @@ pub fn rest(first: *Generation, cx: *Cx, p: chat.Prepared, filter: *turns.Filter
+ }
+ 
+ fn finish(g: *Generation, cx: *Cx, p: chat.Prepared) chat.Failure!chat.Reply {
+-    return g.finish(cx, p.prompt_len, p.received, p.thinking, p.effort, p.sampled, p.drafts);
++    return g.finish(cx, p.prompt_len, p.received, p.thinking, p.reasoning, p.effort, p.sampled, p.drafts);
+ }
+ 
+ /// The segment after an inserted result: the same reply, its first tokens the result's, its own text and calls.
+ fn next(g: *Generation, inserted: []const u32, left: usize) chat.Failure!*Generation {
+     const n = try g.a.create(Generation);
+-    n.* = .{ .srv = g.srv, .a = g.a, .box = g.box, .id = g.id, .reply_id = g.reply_id, .seed = g.seed, .sink = g.sink, .thinking = g.thinking, .stops = g.stops, .ignore_eos = g.ignore_eos, .max_tokens = @intCast(left), .tools = g.tools, .token_ids = g.token_ids, .loop_stop = g.loop_stop, .hold = true, .skip = inserted, .consumed = g.consumed, .chunk_index = g.chunk_index, .first_ns = g.first_ns, .wrote_ns = g.wrote_ns };
++    n.* = .{ .srv = g.srv, .a = g.a, .box = g.box, .id = g.id, .asked = g.asked, .cancel_sent = g.cancel_sent, .reply_id = g.reply_id, .seed = g.seed, .sink = g.sink, .thinking = g.thinking, .chat = g.chat, .single = g.single, .required = g.required, .recover = g.recover, .deadline_ns = g.deadline_ns, .stops = g.stops, .ignore_eos = g.ignore_eos, .max_tokens = @intCast(left), .tools = g.tools, .token_ids = g.token_ids, .loop_stop = g.loop_stop, .hold = true, .skip = inserted, .consumed = g.consumed, .chunk_index = g.chunk_index, .first_ns = g.first_ns, .wrote_ns = g.wrote_ns };
+     if (g.calls != null) n.calls = try tool_stream.Streamer.init(g.a, g.tools);
+     return n;
+ }
+@@ -108,6 +108,13 @@ const Answer = struct { prose: []const u8, reasoning: ?[]const u8, calls: ?[]Val
+ fn segmentAnswer(g: *Generation) chat.Failure!Answer {
+     const a = g.a;
+     const tokens = reply_text.stripTrailing(g.collected.items, g.srv.eos);
++    // a template with its own reply format (Inkling 2's blocks, Kimi's sections) reads its calls as finish does
++    const format = g.srv.text.vtable.format;
++    if (format == .inkling or format == .kimi) {
++        const n = if (format == .inkling) try @import("chat_inkling.zig").read(g, tokens, true) else try @import("chat_kimi.zig").read(g, tokens, true);
++        const r = reply_text.pyStrip(n.reasoning);
++        return .{ .prose = n.content, .reasoning = if (r.len > 0) r else null, .calls = n.calls };
++    }
+     const visible = g.stops.visible(try g.srv.text.decode(a, tokens), false);
+     const close = try tool_parse.closeCall(a, visible, g.tools);
+     const text = if (close.len > 0) try std.mem.concat(a, u8, &.{ visible, close }) else visible;
+diff --git a/zig/src/server/compute_turns.zig b/zig/src/server/compute_turns.zig
+index 50550500f..c5ecbd7fd 100644
+--- a/zig/src/server/compute_turns.zig
++++ b/zig/src/server/compute_turns.zig
+@@ -39,19 +39,19 @@ pub fn open(srv: *Server, cfg: lane.Config) !lane.Pool {
+     return pool;
+ }
+ 
+-/// The request's tools as tool_specs reads them, with `{"type": "code_interpreter"}` turned into the built-in tool.
++/// The request's tools as the server reads them (DeepSeek's own rules or tool_specs), with `{"type": "code_interpreter"}` turned into the built-in tool.
+ pub fn tools(srv: *Server, cx: *Cx, raw: ?Value, choice: ?Value) errors.Refused![]Value {
+-    const list = (raw orelse return tool_specs.active(cx, raw, choice));
+-    if (list != .array) return tool_specs.active(cx, raw, choice);
++    const list = (raw orelse return active(srv, cx, raw, choice));
++    if (list != .array) return active(srv, cx, raw, choice);
+     var rest: std.ArrayList(Value) = .empty;
+     var asked = false;
+     for (list.array) |t| {
+         const kind = if (t == .object) t.strField("type") orelse "" else "";
+         if (std.mem.eql(u8, kind, opt_in)) asked = true else try rest.append(cx.a, t);
+     }
+-    if (!asked) return tool_specs.active(cx, raw, choice);
++    if (!asked) return active(srv, cx, raw, choice);
+     if (srv.compute == null) return cx.other("code_interpreter is not enabled on this server");
+-    const specs = try tool_specs.active(cx, .{ .array = rest.items }, choice);
++    const specs = try active(srv, cx, .{ .array = rest.items }, choice);
+     for (specs) |t| if (std.mem.eql(u8, toolName(t), name)) return cx.other("a request with code_interpreter cannot also offer a function named python");
+     // only an automatic choice lets the model call it: "none", "required" and a named function leave it out
+     if (choice) |c| if (!(c == .null or (c == .string and std.mem.eql(u8, c.string, "auto")))) return specs;
+@@ -62,6 +62,11 @@ pub fn tools(srv: *Server, cx: *Cx, raw: ?Value, choice: ?Value) errors.Refused!
+     return std.mem.concat(cx.a, Value, &.{ specs, &.{built} });
+ }
+ 
++fn active(srv: *const Server, cx: *Cx, raw: ?Value, choice: ?Value) errors.Refused![]Value {
++    if (srv.text.native_deepseek) return @import("deepseek_request.zig").active(cx, raw, choice);
++    return tool_specs.active(cx, raw, choice);
++}
++
+ fn toolName(t: Value) []const u8 {
+     const f = t.get("function") orelse return "";
+     return f.strField("name") orelse "";
+diff --git a/zig/src/server/openai.zig b/zig/src/server/openai.zig
+index f70cd72c9..89aac088b 100644
+--- a/zig/src/server/openai.zig
++++ b/zig/src/server/openai.zig
+@@ -112,7 +112,7 @@ pub fn plan(srv: *Server, cx: *Cx, is_chat: bool, raw: Value, format: ?[]const u
+     var input: chat.Input = .{ .fields = undefined, .format = format, .chat_route = is_chat, .execution_witness = try @import("witness_reply.zig").asked(srv, cx, body) };
+     if (is_chat) {
+         input.messages = try messages.normalizeWith(cx, body.get("messages"), "system", srv.needs_user_after_tool, srv.media());
+-        input.tools = if (srv.text.native_deepseek) try @import("deepseek_request.zig").active(cx, body.get("tools"), body.get("tool_choice")) else try @import("compute_turns.zig").tools(srv, cx, body.get("tools"), body.get("tool_choice"));
++        input.tools = try @import("compute_turns.zig").tools(srv, cx, body.get("tools"), body.get("tool_choice"));
+     } else if (body.get("messages")) |m| if (m == .array and m.array.len > 0) {
+         input.messages = try messages.normalizeWith(cx, m, "system", srv.needs_user_after_tool, srv.media());
+     };

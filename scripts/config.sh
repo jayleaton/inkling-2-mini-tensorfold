@@ -79,6 +79,12 @@ PARALLEL="${PARALLEL:-2}"
 # resumes a prompt from SESSION_DIR (mounted at /sessions) instead of prefilling it again. Put SESSION_DIR on the NVMe.
 PROMPT_CACHE_DISK="${PROMPT_CACHE_DISK:-1}"
 SESSION_DIR="${SESSION_DIR:-$HOME/.cache/tensorfold-inkling2/sessions}"
+# COMPUTE_LANE=1 turns on the compute lane (patches 0020-0024): a code_interpreter call the model makes is run in a
+# sandbox (Landlock and seccomp, no network, python3 in the image) and its result goes back into the same reply as
+# Inkling's tool turn, without a client round trip. It sets TF_INKLING2_COMPUTE_LANE=1 in the container unless that is
+# set already; every TF_INKLING2_COMPUTE_LANE_* knob (_WORKERS, _MAX_MS, _MEM_MB, _CPUS, _DEFAULT, ...) passes through.
+# Off (the default), replies are exactly as without the lane patches.
+COMPUTE_LANE="${COMPUTE_LANE:-0}"
 MAX_TOKENS="${MAX_TOKENS:-32768}"
 # DRAFTS=1 drafts with DRAFTER; 0 passes --no-drafts.
 DRAFTS="${DRAFTS:-1}"

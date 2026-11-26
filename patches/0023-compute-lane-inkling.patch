@@ -1,0 +1,156 @@
+diff --git a/zig/src/server/compute_lane_http_test.zig b/zig/src/server/compute_lane_http_test.zig
+index 375384ed3..11f3ac027 100644
+--- a/zig/src/server/compute_lane_http_test.zig
++++ b/zig/src/server/compute_lane_http_test.zig
+@@ -177,3 +177,90 @@ test "compute lane: code_interpreter on a server without the lane is refused bef
+     try t.expect(reply.code >= 400);
+     try t.expect(script.sink == null);
+ }
++
++/// Inkling 2's mini tokenizer, its ids made dense (the fixture keeps the checkpoint's sparse ones), and the checkpoint's
++/// chat template: calls in invoke blocks, no call ids, `<|content_model_end_sampling|>` its EOS.
++fn inklingFixture(a: Allocator) !struct { f.Fixture, u32 } {
++    var out = try f.Fixture.init(a, t.io, null);
++    errdefer out.deinit();
++    const dir = "zig/src/families/inkling2/fixtures/";
++    const tok = try obj(a, try std.Io.Dir.cwd().readFileAlloc(t.io, dir ++ "mini_tokenizer.json", a, .limited(1 << 20)));
++    const vocab = tok.get("model").?.get("vocab").?.object;
++    var next: i64 = 0;
++    for (vocab.values()) |*v| {
++        v.* = try json.intValue(a, next);
++        next += 1;
++    }
++    var eos: u32 = 0;
++    for (tok.get("added_tokens").?.array) |added| {
++        if (std.mem.eql(u8, added.strField("content").?, "<|content_model_end_sampling|>")) eos = @intCast(next);
++        try added.object.put(a, "id", try json.intValue(a, next));
++        next += 1;
++    }
++    const template = try std.Io.Dir.cwd().readFileAlloc(t.io, dir ++ "chat_template.jinja", a, .limited(1 << 20));
++    try out.tmp.dir.writeFile(t.io, .{ .sub_path = "tokenizer.json", .data = try json.stringify(a, tok, .{}) });
++    try out.tmp.dir.writeFile(t.io, .{ .sub_path = "chat_template.jinja", .data = template });
++    try out.tmp.dir.writeFile(t.io, .{ .sub_path = "config.json", .data = try std.fmt.allocPrint(a, "{{\"model_type\":\"inkling2\",\"eos_token_id\":{d}}}", .{eos}) });
++    try out.tmp.dir.writeFile(t.io, .{ .sub_path = "tokenizer_config.json", .data = "{\"eos_token\":\"<|content_model_end_sampling|>\"}" });
++    return .{ out, eos };
++}
++
++test "compute lane: Inkling 2's call block holds, its tool turn is forced in by name, and the reply goes on" {
++    var arena = std.heap.ArenaAllocator.init(t.allocator);
++    defer arena.deinit();
++    const a = arena.allocator();
++    const python = "/usr/bin/python3";
++    std.Io.Dir.accessAbsolute(t.io, python, .{}) catch return error.SkipZigTest;
++    var tmp, const eos = try inklingFixture(a);
++    defer tmp.deinit();
++    var problem: []const u8 = "";
++    errdefer std.debug.print("INKLING_PROBLEM {s}\n", .{problem});
++    const hf = try HfText.load(a, t.io, tmp.path, null, a, &problem);
++    defer hf.deinit();
++    const text = hf.text();
++    try t.expectEqual(@import("model_text.zig").Text.Format.inkling, text.vtable.format);
++    const history = try tf.messages(a, "What is 6*7?");
++    // the template's own spelling of the call turn: arguments as an object, no id the model would write
++    const call_turn = try obj(a,
++        \\{"role":"assistant","content":"","tool_calls":[{"type":"function","function":{"name":"python","arguments":{"code":"print(6*7)"}}}]}
++    );
++    const asked = try text.renderIds(a, history, .{ .add_generation_prompt = true }, &problem);
++    const called = try text.renderIds(a, try appendTo(a, history, &.{call_turn}), .{ .add_generation_prompt = false }, &problem);
++    try t.expect(std.mem.startsWith(u32, called, asked));
++    try t.expectEqual(eos, called[called.len - 1]);
++    const answer = try std.mem.concat(a, u32, &.{ try text.encodePlain(a, "<|message_model|><|content_text|>It is 42.<|end_message|>"), &.{eos} });
++    var script: Script = .{ .a = a, .call = called[asked.len..], .answer = answer };
++    const srv = try @import("server.zig").Server.init(a, t.io, script.engine(), text, .{ .served_name = "m", .model_ids = &.{"m"}, .enable_thinking = false, .use_drafts = false }, null);
++    defer srv.deinit();
++    const cfg: lane.Config = .{ .python = python };
++    srv.info.compute = cfg;
++    srv.compute = lane.Pool.init(cfg, &.{ "/bin/sh", "-c", "exec \"$0\" -I -B -u -c \"$1\"", python, lane.runner.runner });
++    var reply: Reply = .{ .a = a };
++    var conn = try @import("http_conn.zig").Conn.init(a, -1, "fixture");
++    defer conn.deinit();
++    const body = try json.newObject(a);
++    try body.put(a, "model", .{ .string = "m" });
++    try body.put(a, "max_tokens", try json.intValue(a, 400));
++    try body.put(a, "messages", history);
++    try body.put(a, "tools", try obj(a, "[{\"type\":\"code_interpreter\"}]"));
++    @import("openai.zig").run(srv, a, reply.out(), .{ .conn = &conn }, true, .{ .object = body });
++    const said = try json.stringify(a, reply.body, .{});
++    errdefer std.debug.print("INKLING_LANE_REPLY {s}\n", .{said});
++    try t.expectEqual(@as(u16, 200), reply.code);
++    try t.expect(script.held_asked);
++    try t.expectEqual(@as(usize, 2), script.resumes.items.len);
++    try t.expectEqual(@as(usize, 0), script.resumes.items[1].len);
++    // a client's round trip: the same call turn, then the result as the tool's turn, named as the template reads it
++    const result = try obj(a, "{\"role\":\"tool\",\"name\":\"python\",\"content\":\"42\"}");
++    const full = try text.renderIds(a, try appendTo(a, history, &.{ call_turn, result }), .{ .add_generation_prompt = true }, &problem);
++    try t.expect(std.mem.startsWith(u32, full, called));
++    try t.expectEqualSlices(u32, full[called.len..], script.resumes.items[0]);
++    const choice = reply.body.get("choices").?.array[0];
++    try t.expectEqualStrings("stop", choice.get("finish_reason").?.string);
++    const message = choice.get("message").?;
++    try t.expect(std.mem.indexOf(u8, message.strField("content").?, "It is 42.") != null);
++    try t.expect(message.get("tool_calls") == null or message.get("tool_calls").? == .null);
++    const report = reply.body.get("tensorfold").?.get("compute").?.get("calls").?.array[0];
++    try t.expectEqualStrings("42", report.strField("output").?);
++    try t.expect(report.get("inserted").?.bool);
++}
+diff --git a/zig/src/server/compute_segments.zig b/zig/src/server/compute_segments.zig
+index c0ad7c59c..cf520e361 100644
+--- a/zig/src/server/compute_segments.zig
++++ b/zig/src/server/compute_segments.zig
+@@ -47,7 +47,7 @@ pub fn rest(first: *Generation, cx: *Cx, p: chat.Prepared, filter: *turns.Filter
+         var plan: ?[]const u32 = null;
+         var assistant: Value = .null;
+         var reports: []Value = &.{};
+-        if (calls.len > 0 and used + answer_room < p.request.max_tokens) {
++            if (calls.len > 0 and used + answer_room < p.request.max_tokens) {
+             assistant = try assistantTurn(a, answer.prose, answer.reasoning, calls);
+             reports = try runAll(a, srv, cfg, calls, &run_calls, gone);
+             plan = try suffix(srv, cx, p, &m.history, assistant, calls, reports);
+@@ -214,6 +214,8 @@ fn toolTurn(a: Allocator, call: Value, output: []const u8) Allocator.Error!Value
+     const o = try json.newObject(a);
+     try o.put(a, "role", .{ .string = "tool" });
+     try o.put(a, "tool_call_id", call.get("id") orelse .null);
++    // a model that writes no call ids (Inkling 2) names the result's tool, as its template's tool header reads it
++    if (call.get("function")) |f| if (f.get("name")) |n| try o.put(a, "name", n);
+     try o.put(a, "content", .{ .string = output });
+     return .{ .object = o };
+ }
+diff --git a/zig/src/server/compute_turns.zig b/zig/src/server/compute_turns.zig
+index c5ecbd7fd..8031f531a 100644
+--- a/zig/src/server/compute_turns.zig
++++ b/zig/src/server/compute_turns.zig
+@@ -22,6 +22,22 @@ const definition =
+     \\","parameters":{"type":"object","properties":{"code":{"type":"string","description":"Python 3 source to run"}},"required":["code"]}}}
+ ;
+ 
++/// The lane's settings when the family left them unset: TF_INKLING2_COMPUTE_LANE for Inkling 2's reply format,
++/// TF_COMPUTE_LANE for any other, with the same `_WORKERS`, `_MAX_MS` and other limits after the name.
++pub fn fromEnv(srv: *const Server) error{BadKnob}!?lane.Config {
++    if (srv.text.vtable.format == .inkling) return lane.Config.parse(&env, "TF_INKLING2_COMPUTE_LANE");
++    return lane.Config.parse(&env, "TF_COMPUTE_LANE");
++}
++
++fn env(key: []const u8) ?[]const u8 {
++    var buf: [64]u8 = undefined;
++    if (key.len >= buf.len) return null;
++    @memcpy(buf[0..key.len], key);
++    buf[key.len] = 0;
++    const v = std.mem.span(std.c.getenv(buf[0..key.len :0]) orelse return null);
++    return if (std.mem.trim(u8, v, " \t\r\n").len == 0) null else v;
++}
++
+ /// The server's sandbox pool for an engine that serves the lane; boot fails when an opted-in sandbox cannot run.
+ pub fn open(srv: *Server, cfg: lane.Config) !lane.Pool {
+     if (srv.engine.vtable.resume_held == null) {
+diff --git a/zig/src/server/server.zig b/zig/src/server/server.zig
+index b20f63b32..a21bd9d49 100644
+--- a/zig/src/server/server.zig
++++ b/zig/src/server/server.zig
+@@ -222,6 +222,7 @@ pub const Server = struct {
+             if (config.cortheon) return error.CortheonRequiresTextGeneration;
+             return srv;
+         }
++        if (srv.info.compute == null) srv.info.compute = try @import("compute_turns.zig").fromEnv(srv);
+         if (srv.info.compute) |c| srv.compute = try @import("compute_turns.zig").open(srv, c);
+         if (config.cortheon) srv.cortheon = try cortheon.State.init(gpa, io, "TensorFold-Cortheon (+https://github.com/ashhart/TensorFold)", config.cortheon_search_key);
+         if (config.keep_warm_s > 0) if (engine.keepaliveTarget()) |target| {
