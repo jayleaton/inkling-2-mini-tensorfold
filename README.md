@@ -99,6 +99,16 @@ Prefill doesn't depend on the drafter.
 
 ## Checks
 
+**The current defaults (patches `0001`–`0019`, 2 × 131,072, fp8 KV, DFlash2, vision, states on disk)**, on one Spark on 2026-11-26
+([receipts](bench/spark-run-20261126/README.md); the image also carried `0020`–`0026`, lanes off):
+
+- **`tools/exact.py`**: **PASS** with no pad and at 3k. Drafted equals `"draft": false`, and 6 concurrent replies equal serial ones.
+- **`tools/prompt_reuse.py`** (30k, 4 follow-up turns, another conversation in between): **PASS**, worst follow-up 99.4% reused.
+- **`tools/features.py`**: 12/14. All structured-output and `tool_choice` checks pass, as do a corrupt image giving a 400 and a
+  drafted image reply equalling `"draft": false`. The two vision colour checks returned empty content under a 16-token cap: the
+  model reasons first. That cap is now 2,048, and those two checks have not been rerun.
+- **Peak memory:** `MemAvailable` fell by 41.8 GiB and 49.9 GiB in two boots that ran these checks and the 128k prefill.
+
 **DFlash2 (patches `0001`–`0018`, `DRAFTER=dflash2`)**, with the defaults (`CONTEXT=262144`, `PARALLEL=8`, `KV_DTYPE=fp8`, `DRAFTS=1`). The image
 `./start.sh` built served the live checks:
 
@@ -194,17 +204,32 @@ three of the defaults:
 | fp8 KV | `--kv-cache fp8` (`0003`) | no `kv8` option: bf16 caches only |
 | States on disk | `--prompt-cache-disk` (`0019`) | no kept view: `--prompt-cache-disk` refused |
 | FP8 attention, tensor-core prefill | `0012`, `0015` | absent |
+| Structured output, forced tool calls | `0013` | HTTP 500 ("serves only unconstrained, non-branching text drafts") for `json_schema`, `json_object`, `guided_*` and `tool_choice` required or named |
 
 Mia's patches do not port onto main cheaply: 17 of the 18 edit Jürgen's `mini_*.zig` files, which main replaced with `loop_*.zig`. The
 compute lanes below live in TensorFold's shared lane host and HTTP server, which `dc2ca8a1` shares with main up to their 2026-11-21 fork
-point. The decode and prefill A/B between the two engines (2 × 131,072 tokens, the same checkpoint, each with its best drafter) is
-**not measured yet**.
+point.
+
+Measured on one Spark on 2026-11-26 (2 × 131,072, the same checkpoint; receipts and method in
+[`bench/spark-run-20261126/`](bench/spark-run-20261126/README.md)). Decode is in tok/s, summed over streams; prefill is
+prompt tokens / time to first token:
+
+| | main `920fe22c` | this engine, main's settings (no drafter, bf16 KV, text only) | this recipe's defaults (DFlash2) |
+| --- | ---: | ---: | ---: |
+| decode, sampled prose ×1 / ×2 | 25.7 / 41.2 | 40.5 / 65.0 | **54.9 / 89.0** |
+| decode, sampled code ×1 / ×2 | 25.6 / 39.5 | 40.4 / 62.2 | **72.0 / 101.2** |
+| decode, greedy code ×1 / ×2 | 25.7 / 47.2 | 43.6 / 83.2 | **105.6 / 181.3** |
+| prefill 8k / 32k / 128k | 256 / 256 / 251 | 3,280 / 3,080 / 2,560 | 3,085 / 2,842 / 2,144 |
+
+Engine against engine, this one decodes 1.6–1.8× faster and prefills 10–13× faster. With its defaults it decodes 2.1–4.1×
+faster than main.
 
 ## KV cache & memory budget
 
 On a 128 GB DGX Spark with the defaults (`CONTEXT=131072`, `PARALLEL=2`, `KV_DTYPE=fp8`, `DRAFTS=1`, `VISION=1`,
 `PROMPT_CACHE_DISK=1`, `TENSORFOLD_MEMORY_RESERVE_GIB=9`). These figures are worked from the engine's own logs under the previous
-8 × 262,144 defaults; the 2 × 131,072 run replaces them once it is measured.
+8 × 262,144 defaults. Measured on 2026-11-26, the 2 × 131,072 boots took 41.8–49.9 GiB of `MemAvailable` at their peak. That is
+below the ~62 GiB worked out here, because the RAM prompt cache only fills as it is used.
 
 - **Weights and scratch:** ~23.1 GiB: `17.60 GiB` target + `1.67 GiB` DFlash2 + `0.59 GiB` vision, plus scratch. That is the logged
   `model 59.83 GiB` less its 36.7 GiB of streams.
@@ -303,7 +328,10 @@ Applied in order onto TensorFold `dc2ca8a1` (PR #4441) by `scripts/prepare.sh`:
 | `tools/exact.py` | greedy replies: drafted, `"draft": false` and concurrent must match token for token |
 | `tools/prompt_reuse.py` | multi-turn prompt cache reuse |
 | `tools/needle.py` | passphrase retrieval in a ~200k-token haystack |
-| `tools/bench_streams.py` | decode at 1 to N concurrent requests and prefill 4k to 128k |
+| `tools/speed.py` | decode (prose and code, sampled and greedy) at 1 to N streams and prefill at 8k, 32k and 128k, timed at the client |
+| `tools/features.py` | structured output, `tool_choice` and vision, one PASS/FAIL line each |
+| `tools/lane_ab.py` | the compute-lane A/B: generated arithmetic with exact answers under arms P, D, L and tool-full |
+| `tools/bench_streams.py` | needs a `tools/bench.py` that this repository does not have; use `tools/speed.py` |
 | `tools/client.py` | CLI chat client and shared helpers |
 
 ## Repository layout

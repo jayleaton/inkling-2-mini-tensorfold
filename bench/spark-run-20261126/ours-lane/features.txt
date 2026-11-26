@@ -1,0 +1,24 @@
+PASS  json_schema greedy: {
+  "name": "Elara Voss",
+  "age": 27,
+  "tags": ["fictional", "explorer", "cart
+PASS  json_schema sampled: {
+  "name": "Aria Quinn",
+  "age": 27,
+  "tags": [
+    "fictional",
+    "invento
+PASS  json_schema thinking: {
+  "name": "Elara Voss",
+  "age": 34,
+  "tags": [
+    "fictional",
+    "science
+PASS  json_object: object
+PASS  guided_regex: (555) 123-4567
+PASS  guided_choice: no
+PASS  tool_choice required: tool_calls get_weather {"city":"Paris"}
+PASS  tool_choice named: tool_calls get_weather {"city":"Paris"}
+PASS  tool_choice auto: tool_calls get_weather {"city":"Paris"}
+PASS  tool_choice none: I don’t have live weather access, but Paris is typically mild and variable—check
+10/10 passed

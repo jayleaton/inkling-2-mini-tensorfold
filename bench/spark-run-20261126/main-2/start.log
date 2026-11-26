@@ -1,0 +1,49 @@
+
+  ██╗███╗   ██╗██╗  ██╗██╗     ██╗███╗   ██╗ ██████╗
+  ██║████╗  ██║██║ ██╔╝██║     ██║████╗  ██║██╔════╝
+  ██║██╔██╗ ██║█████╔╝ ██║     ██║██╔██╗ ██║██║  ███╗
+  ██║██║╚██╗██║██╔═██╗ ██║     ██║██║╚██╗██║██║   ██║
+  ██║██║ ╚████║██║  ██╗███████╗██║██║ ╚████║╚██████╔╝
+  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
+  2 Mini Derisked · TensorFold · one DGX Spark
+  M I A   A I   L A B
+
+  Mia's TensorFold Start Script
+  Inkling-2-Mini · 2 at once · 131072-token window · bf16 KV · drafts off · port 8888
+
+[1/5] Setup: image and checkpoint
+[start.sh] Ready: tensorfold-inkling2:main-920fe22 (patches 4c433f33f577) and /home/dgx02/models/hf/Inkling-2-Mini
+[2/5] Checks: arguments, previous server, port, memory
+[start.sh] Arguments OK, port 8888 free, 116 GiB memory available (this window needs ~48 at start)
+[3/5] Launch: container inkling2-mini-tf
+[start.sh] tensorfold-native serve /models/ink --name Inkling-2-Mini --host 0.0.0.0 --port 8888 --context 131072 --parallel 2 --max-tokens 32768 --temperature 1.0 --top-p 1.0 --top-k 0 --thinking --no-drafts 
+[4/5] Loading: ~25 GiB of weights and the off drafter
+  │ GOVERNING TERMS: The software and materials are governed by the NVIDIA Software License Agreement
+  │ (found at https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/)
+  │ and the Product-Specific Terms for NVIDIA AI Products
+  │ (found at https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/).
+  ⋯ 15s elapsed, 17.8 GiB on the GPU (97 GiB free)
+  │ [tensorfold] chat template: the checkpoint's
+  │ [tensorfold] warning: non-loopback server has no API key; requests are open
+  │ [tensorfold] open-file limit raised: soft 1024 -> 524288
+  │ [tensorfold] CUDA sm_121 device 0 (NVIDIA GB10, memory shared with the host): model 23.03 GiB; 2 streams at once, 4.50 GiB each at a 131072-token window, of 83.9 GiB left after a 9.0 GiB reserve; prompts in passes of up to 2048 rows, a 39.7 GiB prompt cache; own glue kernels
+  │ [tensorfold] profile: stable; registered overrides: none
+  │ [tensorfold] serving Inkling-2-Mini at http://0.0.0.0:8888/v1 (sampling: temperature 1.0, top_p 1.0, top_k 0; drafts: off; context: 131072; loaded in 22.7s)
+[start.sh] Server answered after 25s
+[5/5] Smoke test: one chat completion
+[start.sh] OK: 'OK', 39 tokens
+
+  ✔ Inkling-2-Mini is now LIVE! on port 8888
+
+    API      http://192.168.1.111:8888/v1   (model: Inkling-2-Mini)
+    Loaded   in 25s · 116 GiB was free
+    Model    /home/dgx02/models/hf/Inkling-2-Mini (ModelOpt NVFP4 experts, MXFP8 layers 20-23, bf16 MTP)
+    Window   131072 tokens · 2 at once · bf16 KV · drafts off
+    States   RAM only
+    Lane     off
+    Logs     docker logs -f inkling2-mini-tf
+    Restart  ./start.sh restart
+    Stop     ./stop.sh
+
+[stop.sh] Stopping inkling2-mini-tf (up to 30s)
+[stop.sh] Stopped and removed inkling2-mini-tf; its GPU memory is free again

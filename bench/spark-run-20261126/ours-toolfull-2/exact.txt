@@ -1,0 +1,10 @@
+ #  serial       nodraft      conc          token sha serial/nodraft/conc       accepted  finish
+ 0  a2737ff99bf2 a2737ff99bf2 a2737ff99bf2  26c0c259f8ae/26c0c259f8ae/26c0c259f8ae       121  length
+ 1  3456618aebe0 3456618aebe0 3456618aebe0  588ab0210883/588ab0210883/588ab0210883        94  length
+ 2  8e135d58652a 8e135d58652a 8e135d58652a  bc5355124420/bc5355124420/bc5355124420       138  length
+ 3  6389281738ca 6389281738ca 6389281738ca  b7dffa56aaed/b7dffa56aaed/b7dffa56aaed       105  length
+ 4  02d2c44e83ed 02d2c44e83ed 02d2c44e83ed  e3d55d053eb8/e3d55d053eb8/e3d55d053eb8       111  length
+ 5  9c4de642c020 9c4de642c020 9c4de642c020  4765af7a1b19/4765af7a1b19/4765af7a1b19       120  length
+PASS draft: 6 drafted replies (689 drafts accepted) equal the "draft": false ones
+PASS conc: 6 concurrent replies equal the one-at-a-time ones (server max_batch_size 2)
+exact: PASS

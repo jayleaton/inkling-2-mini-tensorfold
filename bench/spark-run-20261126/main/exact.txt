@@ -1,0 +1,10 @@
+ #  serial       nodraft      conc          token sha serial/nodraft/conc       accepted  finish
+ 0  580dbb3bfc19 580dbb3bfc19 580dbb3bfc19  52e25263cb0c/52e25263cb0c/52e25263cb0c         0  length
+ 1  c9ed83465a81 c9ed83465a81 c9ed83465a81  c24bc6a41bcc/c24bc6a41bcc/c24bc6a41bcc         0  length
+ 2  5cf19738fbd2 5cf19738fbd2 5cf19738fbd2  06fe29b1a39b/06fe29b1a39b/06fe29b1a39b         0  length
+ 3  47e1cfe50597 47e1cfe50597 47e1cfe50597  6bd0e685df73/6bd0e685df73/6bd0e685df73         0  length
+ 4  71d0b38c7859 71d0b38c7859 71d0b38c7859  1960edd0a95e/1960edd0a95e/1960edd0a95e         0  length
+ 5  c0ee69d27cca c0ee69d27cca c0ee69d27cca  55824e1d5e7a/55824e1d5e7a/55824e1d5e7a         0  length
+UNCHECKED draft: replies equal, but the server reports it served without drafts, so drafted vs serial was not compared
+PASS conc: 6 concurrent replies equal the one-at-a-time ones (server max_batch_size 2)
+exact: UNCHECKED

@@ -1,0 +1,11 @@
+prompts padded to ~3000 tokens: [3002, 3000, 3036, 2995, 3017, 3002]
+ #  serial       nodraft      conc          token sha serial/nodraft/conc       accepted  finish
+ 0  41f6f2816161 41f6f2816161 41f6f2816161  d9d0b4f61541/d9d0b4f61541/d9d0b4f61541         0  length
+ 1  414da2287a1e 414da2287a1e 414da2287a1e  9c9f36e8d027/9c9f36e8d027/9c9f36e8d027         0  length
+ 2  558dd34b397d 558dd34b397d 558dd34b397d  d89e654cdb3e/d89e654cdb3e/d89e654cdb3e         0  length
+ 3  d172d96f95bc d172d96f95bc d172d96f95bc  b310adbab7b5/b310adbab7b5/b310adbab7b5         0  length
+ 4  f10793034af0 f10793034af0 f10793034af0  2e0c4528d5b7/2e0c4528d5b7/2e0c4528d5b7         0  length
+ 5  94970979cfe0 94970979cfe0 94970979cfe0  693f66dfca71/693f66dfca71/693f66dfca71         0  length
+UNCHECKED draft: replies equal, but the server reports it served without drafts, so drafted vs serial was not compared
+PASS conc: 6 concurrent replies equal the one-at-a-time ones (server max_batch_size 2)
+exact: UNCHECKED

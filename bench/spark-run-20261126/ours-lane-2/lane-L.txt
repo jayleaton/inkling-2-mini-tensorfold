@@ -1,0 +1,21 @@
+{"id": "1-001", "kind": "product", "arm": "L", "correct": true, "got": 39550428178413622120944, "answer": 39550428178413622120944, "completion_tokens": 269, "seconds": 7.02, "calls": 1, "finish": "stop", "cut": false, "error": null}
+{"id": "1-000", "kind": "modpow", "arm": "L", "correct": true, "got": 395998613, "answer": 395998613, "completion_tokens": 767, "seconds": 16.15, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-002", "kind": "digitsum", "arm": "L", "correct": true, "got": 594, "answer": 594, "completion_tokens": 407, "seconds": 11.66, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-004", "kind": "primes", "arm": "L", "correct": true, "got": 15816, "answer": 15816, "completion_tokens": 431, "seconds": 8.89, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-003", "kind": "collatz", "arm": "L", "correct": true, "got": 124, "answer": 124, "completion_tokens": 395, "seconds": 12.67, "calls": 1, "finish": "stop", "cut": false, "error": null}
+{"id": "1-005", "kind": "modpow", "arm": "L", "correct": true, "got": 869439542, "answer": 869439542, "completion_tokens": 330, "seconds": 7.57, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-006", "kind": "product", "arm": "L", "correct": true, "got": 26958144508413291535578, "answer": 26958144508413291535578, "completion_tokens": 494, "seconds": 10.28, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-007", "kind": "digitsum", "arm": "L", "correct": true, "got": 738, "answer": 738, "completion_tokens": 557, "seconds": 18.42, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-008", "kind": "collatz", "arm": "L", "correct": true, "got": 111, "answer": 111, "completion_tokens": 604, "seconds": 17.33, "calls": 1, "finish": "stop", "cut": false, "error": null}
+{"id": "1-010", "kind": "modpow", "arm": "L", "correct": true, "got": 300235914, "answer": 300235914, "completion_tokens": 462, "seconds": 10.15, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-009", "kind": "primes", "arm": "L", "correct": true, "got": 14969, "answer": 14969, "completion_tokens": 760, "seconds": 17.22, "calls": 3, "finish": "stop", "cut": false, "error": null}
+{"id": "1-012", "kind": "digitsum", "arm": "L", "correct": true, "got": 378, "answer": 378, "completion_tokens": 525, "seconds": 12.85, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-011", "kind": "product", "arm": "L", "correct": true, "got": 387496691941897018561190, "answer": 387496691941897018561190, "completion_tokens": 1630, "seconds": 30.47, "calls": 4, "finish": "stop", "cut": false, "error": null}
+{"id": "1-013", "kind": "collatz", "arm": "L", "correct": true, "got": 138, "answer": 138, "completion_tokens": 499, "seconds": 15.76, "calls": 1, "finish": "stop", "cut": false, "error": null}
+{"id": "1-015", "kind": "modpow", "arm": "L", "correct": true, "got": 102461601, "answer": 102461601, "completion_tokens": 250, "seconds": 7.21, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-014", "kind": "primes", "arm": "L", "correct": true, "got": 24937, "answer": 24937, "completion_tokens": 443, "seconds": 9.56, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-017", "kind": "digitsum", "arm": "L", "correct": true, "got": 729, "answer": 729, "completion_tokens": 394, "seconds": 11.31, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-016", "kind": "product", "arm": "L", "correct": true, "got": 90182317708123470619566, "answer": 90182317708123470619566, "completion_tokens": 650, "seconds": 14.25, "calls": 3, "finish": "stop", "cut": false, "error": null}
+{"id": "1-019", "kind": "primes", "arm": "L", "correct": true, "got": 20433, "answer": 20433, "completion_tokens": 512, "seconds": 10.74, "calls": 2, "finish": "stop", "cut": false, "error": null}
+{"id": "1-018", "kind": "collatz", "arm": "L", "correct": true, "got": 191, "answer": 191, "completion_tokens": 571, "seconds": 14.75, "calls": 1, "finish": "stop", "cut": false, "error": null}
+SUMMARY {"arm": "L", "seed": 1, "correct": 20, "total": 20, "cut": 0, "errors": 0, "finishes": {"stop": 20}, "seconds_per_question": 13.2, "completion_tokens": 10950, "reply_seconds": 264.3, "wall_seconds": 132.8, "calls": 39}

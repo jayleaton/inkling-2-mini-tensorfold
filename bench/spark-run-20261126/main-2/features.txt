@@ -1,0 +1,11 @@
+FAIL  json_schema greedy: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  json_schema sampled: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  json_schema thinking: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  json_object: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  guided_regex: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  guided_choice: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  tool_choice required: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+FAIL  tool_choice named: /v1/chat/completions answered HTTP 500: Inkling 2 Mini serves only unconstrained, non-branching text drafts
+PASS  tool_choice auto: tool_calls get_weather {"city":"Paris"}
+PASS  tool_choice none: I don’t have live weather access, so I can’t give Paris’s current conditions—che
+2/10 passed

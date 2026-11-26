@@ -1,0 +1,56 @@
+
+  ██╗███╗   ██╗██╗  ██╗██╗     ██╗███╗   ██╗ ██████╗
+  ██║████╗  ██║██║ ██╔╝██║     ██║████╗  ██║██╔════╝
+  ██║██╔██╗ ██║█████╔╝ ██║     ██║██╔██╗ ██║██║  ███╗
+  ██║██║╚██╗██║██╔═██╗ ██║     ██║██║╚██╗██║██║   ██║
+  ██║██║ ╚████║██║  ██╗███████╗██║██║ ╚████║╚██████╔╝
+  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
+  2 Mini Derisked · TensorFold · one DGX Spark
+  M I A   A I   L A B
+
+  Mia's TensorFold Start Script
+  Inkling-2-Mini · 2 at once · 131072-token window · fp8 KV · drafts DFlash2 · port 8888
+
+[1/5] Setup: image and checkpoint
+[start.sh] Ready: tensorfold-inkling2:c4-dc2ca8a-runner (patches 43e0fb792314) and /home/dgx02/models/hf/Inkling-2-Mini
+[2/5] Checks: arguments, previous server, port, memory
+[start.sh] Arguments OK, port 8888 free, 116 GiB memory available (this window needs ~46 at start)
+[3/5] Launch: container inkling2-mini-tf
+[start.sh] tensorfold-native serve /models/ink --name Inkling-2-Mini --host 0.0.0.0 --port 8888 --context 131072 --parallel 2 --max-tokens 32768 --temperature 1.0 --top-p 1.0 --top-k 0 --thinking --drafter /models/draft --vision --kv-cache fp8 --prompt-cache-disk /sessions 
+[4/5] Loading: ~27 GiB of weights and the DFlash2 drafter
+  │ GOVERNING TERMS: The software and materials are governed by the NVIDIA Software License Agreement
+  │ (found at https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/)
+  │ and the Product-Specific Terms for NVIDIA AI Products
+  │ (found at https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/).
+  ⋯ 16s elapsed, 6.6 GiB on the GPU (109 GiB free)
+  ⋯ 31s elapsed, 13.7 GiB on the GPU (102 GiB free)
+  │ info: Inkling 2 Mini vision: 23 layers, 0.59 GiB weights, up to 4096 image tokens / 4 images
+  │ info: Inkling 2 Mini: 48 visits a token (40 sliding, 8 full, 48 conv slots a stream), 2 streams of 132096 positions (fp8 caches), 17.60 GiB of weights
+  ⋯ 46s elapsed, 27.8 GiB on the GPU (87 GiB free)
+  │ info: Inkling 2 Mini DFlash2: 7 drafts a block from /models/draft (Apache-2.0), nvfp4 head, chances lone streams, 1.67 GiB fixed, 0.04 GiB a stream
+  │ [tensorfold] chat template: the checkpoint's
+  │ [tensorfold] warning: non-loopback server has no API key; requests are open
+  │ info: inkling2_loop: conversation states on disk in /sessions/5669274483500f32 (0 states, 0 MiB of 32768 MiB)
+  │ [tensorfold] open-file limit raised: soft 1024 -> 524288
+  │ [tensorfold] CUDA sm_121 device 0 (NVIDIA GB10, memory shared with the host): model 28.01 GiB; 2 streams at once, 2.53 GiB each at a 131072-token window (fp8 caches), of 69.7 GiB left after a 9.0 GiB reserve; prompts in passes of up to 4096 rows, a 34.8 GiB prompt cache; own glue kernels
+  │ [tensorfold] prompt cache: device budget not reported, disk tier at /sessions
+  │ [tensorfold] profile: stable; registered overrides: none
+  │ [tensorfold] serving Inkling-2-Mini at http://0.0.0.0:8888/v1 (sampling: temperature 1.0, top_p 1.0, top_k 0; drafts: DFlash2 (/models/draft); context: 131072; loaded in 48.9s)
+[start.sh] Server answered after 52s
+[5/5] Smoke test: one chat completion
+[start.sh] OK: 'OK', 38 tokens
+
+  ✔ Inkling-2-Mini is now LIVE! on port 8888
+
+    API      http://192.168.1.111:8888/v1   (model: Inkling-2-Mini)
+    Loaded   in 52s · 116 GiB was free
+    Model    /home/dgx02/models/hf/Inkling-2-Mini (ModelOpt NVFP4 experts, MXFP8 layers 20-23, bf16 MTP)
+    Window   131072 tokens · 2 at once · fp8 KV · drafts DFlash2
+    States   RAM and /home/dgx02/.cache/tensorfold-inkling2/sessions
+    Lane     off
+    Logs     docker logs -f inkling2-mini-tf
+    Restart  ./start.sh restart
+    Stop     ./stop.sh
+
+[stop.sh] Stopping inkling2-mini-tf (up to 30s)
+[stop.sh] Stopped and removed inkling2-mini-tf; its GPU memory is free again

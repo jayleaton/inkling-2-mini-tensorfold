@@ -1,0 +1,11 @@
+prompts padded to ~3000 tokens: [3002, 3000, 3036, 2995, 3017, 3002]
+ #  serial       nodraft      conc          token sha serial/nodraft/conc       accepted  finish
+ 0  3de06906f4e5 3de06906f4e5 3de06906f4e5  68fd752ec91e/68fd752ec91e/68fd752ec91e       120  length
+ 1  221772655486 221772655486 221772655486  9831a3105e35/9831a3105e35/9831a3105e35        92  length
+ 2  558dd34b397d 558dd34b397d 558dd34b397d  d89e654cdb3e/d89e654cdb3e/d89e654cdb3e       131  length
+ 3  f5d1f377a55c f5d1f377a55c f5d1f377a55c  3dd19a34fe38/3dd19a34fe38/3dd19a34fe38       113  length
+ 4  a11123d17069 a11123d17069 a11123d17069  a5b1b16e2c80/a5b1b16e2c80/a5b1b16e2c80       106  length
+ 5  09968f3961c8 09968f3961c8 09968f3961c8  2279229ce1b2/2279229ce1b2/2279229ce1b2       115  length
+PASS draft: 6 drafted replies (677 drafts accepted) equal the "draft": false ones
+PASS conc: 6 concurrent replies equal the one-at-a-time ones (server max_batch_size 2)
+exact: PASS

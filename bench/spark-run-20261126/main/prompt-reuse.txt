@@ -1,0 +1,10 @@
+turn 0 (cold): prompt 31655 tokens, cached 0, prefill 124.09 s, wall 126.2 s
+  other conversation: prompt 1563 tokens, cached 1549
+turn 1: prompt 31836 tokens, cached 31654 (99.4%), prefill 0.92 s, wall 3.0 s
+  other conversation: prompt 1564 tokens, cached 1549
+turn 2: prompt 32004 tokens, cached 31835 (99.5%), prefill 0.87 s, wall 2.9 s
+  other conversation: prompt 1563 tokens, cached 1549
+turn 3: prompt 32187 tokens, cached 32003 (99.4%), prefill 0.92 s, wall 3.0 s
+  other conversation: prompt 1564 tokens, cached 1549
+turn 4: prompt 32358 tokens, cached 32186 (99.5%), prefill 0.87 s, wall 2.9 s
+prompt_reuse: PASS: every follow-up resumed >= 90% of its prompt (worst 99.4%)
