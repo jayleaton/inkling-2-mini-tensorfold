@@ -34,17 +34,20 @@ for phase in "$@"; do
       python3 "$kit/q1.py" lane --light --out "$dir" >> "$dir/log" 2>&1 || status=1
       python3 "$kit/q1.py" control --out "$dir" >> "$dir/log" 2>&1 || status=1
       ;;
-    X-dspark|S-dspark|X-off|S-off)
-      boot "${phase%%-*}" "${phase##*-}" "$sessions" || { echo "boot failed" > "$dir/exit"; continue; }
+    X-dspark|S-dspark)
+      boot "${phase%%-*}" dspark "$sessions" || { echo "boot failed" > "$dir/exit"; continue; }
       python3 "$kit/q1.py" lane --light --cases "$subset" --samplers greedy,t07 --out "$dir" >> "$dir/log" 2>&1 || status=1
+      ;;
+    X-off|S-off)
+      boot "${phase%%-*}" off "$sessions" || { echo "boot failed" > "$dir/exit"; continue; }
+      python3 "$kit/q1.py" lane --light --samplers greedy,t07 --out "$dir" >> "$dir/log" 2>&1 || status=1
       ;;
     S-sums|X-sums|S0-sums)
       boot "${phase%%-*}" dflash2 "$sessions" "$dir/sums" || { echo "boot failed" > "$dir/exit"; continue; }
       python3 "$kit/q1.py" lane --light --samplers greedy,t07 --sums "$dir/sums/sums.jsonl" --out "$dir" >> "$dir/log" 2>&1 || status=1
-      python3 "$kit/q1.py" control --samplers greedy --sums "$dir/sums/sums.jsonl" --out "$dir" >> "$dir/log" 2>&1 || status=1
       ;;
     X-ref|S-ref)
-      boot "${phase%%-*}" "${REF_DRAFTER:-dflash2}" "$sessions" "$dir/sums" TF_INKLING2_STATE_SUMS_DECODE_PROMPT=1 ||
+      boot "${phase%%-*}" "${REF_DRAFTER:-dflash2}" "$sessions" "$dir/sums" TF_INKLING2_STATE_SUMS_DECODE_PROMPT=8 ||
         { echo "boot failed" > "$dir/exit"; continue; }
       python3 "$kit/q1.py" ref --from "$out/${phase%%-*}-sums" --samplers greedy,t07 --sums "$dir/sums/sums.jsonl" --out "$dir" >> "$dir/log" 2>&1 || status=1
       ;;

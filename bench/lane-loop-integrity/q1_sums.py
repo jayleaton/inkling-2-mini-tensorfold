@@ -2,7 +2,9 @@
 
   q1_sums.py pairs --dir PHASE [--ref PHASE] --out FILE    every case: A against its variants, its cold replays, and the
                                                          reference boot's replay of the same history (check R)
-  q1_sums.py plant --dir PHASE --clean PHASE --visit V --position P    the planted conv bit: where the sums first differ
+  q1_sums.py plant --dir PHASE --clean PHASE    the planted conv bit: the sums must first differ at the row the flip
+                                                preceded, on the visit after the planted one (a visit writes its K and V
+                                                before its attention conv reads the state), with every earlier visit equal
   q1_sums.py selftest                                    one sum changed in a copy must be named exactly
 
 A PHASE is a q1.py --out folder booted with SUMS: rows.jsonl (each row's byte span of sums/sums.jsonl) and ids/.
@@ -202,13 +204,14 @@ def pairs(args):
 def plant(args):
     def lane(folder):
         checks = next(iter(rows_of(folder).values()))
-        r = checks["A.nodraft"]
+        r = checks["A"]
         ids = json.load(open(os.path.join(folder, "ids", f"{r['case']}-{r['sampler']}.json")))
         return stream(os.path.join(folder, "sums", "sums.jsonl"), r["sums"], len(ids["prompt"]))
     planted, clean = lane(args.dir), lane(args.clean)
     diffs, _ = differences(planted, clean)
     first = diffs[0] if diffs else None
-    red = bool(first) and first[1] == args.visit and first[0] >= args.position
+    at = planted.plant or {}
+    red = bool(first) and first[0] == at.get("len") and first[1] == at.get("visit", -2) + 1 and first[2] in ("k", "v")
     print(json.dumps({"planted": planted.plant, "first": first, "differences": len(diffs), "red": red}))
     sys.exit(0 if red else 1)
 
@@ -246,8 +249,6 @@ def main():
     ap.add_argument("--ref")
     ap.add_argument("--clean")
     ap.add_argument("--out")
-    ap.add_argument("--visit", type=int)
-    ap.add_argument("--position", type=int)
     args = ap.parse_args()
     if args.mode == "selftest":
         return selftest()

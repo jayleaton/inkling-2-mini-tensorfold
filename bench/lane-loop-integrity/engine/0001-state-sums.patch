@@ -1,0 +1,655 @@
+diff --git c/zig/src/families/inkling2/mini_backend.zig w/zig/src/families/inkling2/mini_backend.zig
+index 94cbc10..04018fc 100644
+--- c/zig/src/families/inkling2/mini_backend.zig
++++ w/zig/src/families/inkling2/mini_backend.zig
+@@ -7,6 +7,7 @@ const lanes = @import("lanes");
+ const mm = @import("mini_model.zig");
+ const ops = @import("ops.zig");
+ const snap = @import("mini_snap.zig");
++const sums = @import("mini_sums.zig");
+ const mini_vision = @import("mini_vision.zig");
+ 
+ const be = lanes.backend;
+@@ -172,6 +173,7 @@ pub const Mini = struct {
+             b.* = try cuda.DeviceBuffer.alloc(d, if (i % 2 == 0) v * 4 else @sizeOf(cuda.sample.Rule));
+             made += 1;
+         }
++        sums.init();
+         return .{ .gpa = gpa, .d = d, .m = m, .k = k, .x = x, .s = s, .image_token = image_token, .free = free, .logits16 = logits16, .tok = tok, .meta = meta, .bits = bits, .bits_words = bw, .guard = guard, .slot_bufs = bufs };
+     }
+ 
+@@ -341,6 +343,7 @@ pub const Mini = struct {
+             }
+         }
+         s.fill_at.store(@intCast(l.fill.?), .monotonic);
++        if (sums.on) sums.open(s, l.slot, p, l.fill.?);
+         return l;
+     }
+ 
+@@ -385,6 +388,7 @@ pub const Mini = struct {
+         const at = l.fill.?;
+         if (s.isCancelled()) return error.Cancelled;
+         var end = @min(p.len, (at / prompt_rows + 1) * prompt_rows);
++        if (sums.decode_prompt > 0) end = @min(end, at + sums.decode_prompt);
+         for (s.reuse.marks) |mk| if (mk > at and mk < end) {
+             end = mk;
+         };
+@@ -392,8 +396,12 @@ pub const Mini = struct {
+         x.m.vision_slot = if (s.images.len > 0) l.slot else null;
+         x.m.vision_p0 = at;
+         defer x.m.vision_slot = null;
+-        try x.m.forward(x.k, x.s, &.{.{ .slot = l.slot, .p0 = at, .tokens = p[at..end] }}, true, end - at - 1, @intFromBool(done));
+-        if (done) try x.d.check(x.d.api.cuMemcpyDtoDAsync_v2(l.last, x.m.s.logits, x.vocab() * 4, x.s.handle), "cuMemcpyDtoDAsync");
++        if (sums.decode_prompt > 0) {
++            try x.decodeChunk(l, p[at..end], at, done);
++        } else {
++            try x.m.forward(x.k, x.s, &.{.{ .slot = l.slot, .p0 = at, .tokens = p[at..end] }}, true, end - at - 1, @intFromBool(done));
++            if (done) try x.d.check(x.d.api.cuMemcpyDtoDAsync_v2(l.last, x.m.s.logits, x.vocab() * 4, x.s.handle), "cuMemcpyDtoDAsync");
++        }
+         if (x.m.taps_on) {
+             l.chunk_at = at;
+             l.chunk_rows = end - at;
+@@ -403,10 +411,26 @@ pub const Mini = struct {
+         s.fill_at.store(@intCast(end), .monotonic);
+         l.fill = if (done) null else end;
+         if (done) l.len = p.len;
++        if (sums.on) {
++            const dp = sums.decode_prompt > 0;
++            sums.rows(x.m, x.s, s, l.slot, if (dp) .decode else .prompt, at, end - at, end, 0, if (dp) x.m.s.logits else if (done) l.last else 0);
++            if (done) sums.keptState(x.m, x.s, s, l.slot, p.len, .prefilled);
++        }
+         if (s.reuse.hook) |hk| if (std.mem.indexOfScalar(u32, s.reuse.marks, @intCast(end)) != null) hk.at(hk.ptr, s, @intCast(end));
+         return done;
+     }
+ 
++    /// TF_INKLING2_STATE_SUMS_DECODE_PROMPT: a chunk's rows as one decode window, a verify's shape with every logit.
++    fn decodeChunk(x: *Mini, l: *Lane, tokens: []const u32, at: usize, done: bool) !void {
++        if (x.m.vision_slot != null) return error.Inkling2MiniImages;
++        const n = tokens.len;
++        if (n > 1) try x.m.backupSlot(x.k, x.s, l.slot);
++        x.m.hist_on = n > 1;
++        defer x.m.hist_on = false;
++        try x.m.forward(x.k, x.s, &.{.{ .slot = l.slot, .p0 = at, .tokens = tokens }}, false, 0, n);
++        if (done) try x.d.check(x.d.api.cuMemcpyDtoDAsync_v2(l.last, x.m.s.logits + (n - 1) * x.vocab() * 4, x.vocab() * 4, x.s.handle), "cuMemcpyDtoDAsync");
++    }
++
+     fn prefill(ptr: *anyopaque, s: *Stream) anyerror!void {
+         const x = self(ptr);
+         const l = try x.opening(s);
+@@ -460,6 +484,7 @@ pub const Mini = struct {
+         const l = x.lanes.getPtr(s) orelse return error.UnknownStream;
+         const t = try x.value(feed);
+         if (position != l.len + 1) return error.PositionMismatch;
++        if (sums.on) sums.plantAt(x.m, x.s, s, l.slot, l.len);
+         x.m.lazy_ok = lazyRow(x, l, position, 0);
+         defer x.m.lazy_ok = false;
+         try x.m.forward(x.k, x.s, &.{.{ .slot = l.slot, .p0 = l.len, .tokens = &.{t} }}, false, 0, 1);
+@@ -468,6 +493,7 @@ pub const Mini = struct {
+         l.len += 1;
+         const h = x.next;
+         try x.drawRows(l, x.m.s.logits, 0, 1, position, x.handle(), 0, &.{}, 0);
++        if (sums.on) sums.rows(x.m, x.s, s, l.slot, .decode, l.len - 1, 1, l.len, 0, if (x.m.lazyFor(1)) 0 else x.m.s.logits);
+         return h;
+     }
+ 
+@@ -511,6 +537,7 @@ pub const Mini = struct {
+             masked = masked or w.masks.len != 0;
+             const l = x.lanes.getPtr(w.stream) orelse return error.UnknownStream;
+             if (w.rows() > verify_rows) return error.WindowTooWide;
++            if (sums.on) sums.plantAt(x.m, x.s, w.stream, l.slot, l.len);
+             l.base = l.len;
+             l.rows.clearRetainingCapacity();
+             try l.rows.append(x.gpa, w.pending);
+@@ -560,6 +587,10 @@ pub const Mini = struct {
+             l.len = l.base + n;
+             at += n;
+         }
++        if (sums.on) for (windows) |w| {
++            const l = x.lanes.getPtr(w.stream).?;
++            sums.rows(x.m, x.s, w.stream, l.slot, .decode, l.base, l.rows.items.len, l.len, l.row0, if (x.m.lazyFor(total)) 0 else x.m.s.logits + l.row0 * x.vocab() * 4);
++        };
+     }
+ 
+     /// Each window keeps a prefix of its rows: a cut one's length and conv states roll back to that prefix (the
+@@ -576,6 +607,7 @@ pub const Mini = struct {
+             try x.m.rewindSlot(x.k, x.s, l.slot, l.row0, path.len);
+             l.len = l.base + path.len;
+             if (l.held_at == l.base) l.held_rows = @min(l.held_rows, path.len);
++            if (sums.on) sums.kept(x.m, x.s, w.stream, l.slot, l.len);
+         }
+     }
+ 
+@@ -659,7 +691,9 @@ pub const Mini = struct {
+     }
+ 
+     fn release(ptr: *anyopaque, s: *Stream) void {
+-        self(ptr).dropLane(s);
++        const x = self(ptr);
++        if (sums.on) if (x.lanes.getPtr(s)) |l| sums.release(x.m, x.s, s, l.slot, l.len, l.fill == null and l.len > 0);
++        x.dropLane(s);
+     }
+ };
+ 
+diff --git c/zig/src/families/inkling2/mini_dflash.zig w/zig/src/families/inkling2/mini_dflash.zig
+index f1dcf24..3b20efc 100644
+--- c/zig/src/families/inkling2/mini_dflash.zig
++++ w/zig/src/families/inkling2/mini_dflash.zig
+@@ -11,6 +11,7 @@ const lanes = @import("lanes");
+ const wts = @import("mini_weights.zig");
+ const mm = @import("mini_model.zig");
+ const ops = @import("ops.zig");
++const sums = @import("mini_sums.zig");
+ 
+ const dr = lanes.drafter;
+ const Stream = lanes.Stream;
+@@ -616,6 +617,7 @@ pub const Drafter = struct {
+ 
+     fn releaseFn(ptr: *anyopaque, s: *Stream) void {
+         const x = self(ptr);
++        if (sums.on) x.sumRing(s, .release);
+         if (x.lanes.fetchRemove(s)) |e| x.slots.items[e.value.slot].used = false;
+     }
+ 
+@@ -717,9 +719,16 @@ pub const Drafter = struct {
+             l.end = item.start + f.rows; // rows past a rewound end are rewritten in place
+             l.held = 0;
+             l.fetched = false;
++            if (sums.on and item.prompt and l.end == item.stream.prompt().len) x.sumRing(item.stream, .prefilled);
+         }
+     }
+ 
++    /// TF_INKLING2_STATE_SUMS: the stream's ring sums (each layer's K then V, its absorbed window).
++    fn sumRing(x: *Drafter, s: *Stream, when: sums.When) void {
++        const l = x.lanes.get(s) orelse return;
++        sums.draft(x.d, x.s, s, when, x.slots.items[l.slot].ring, l.from, l.end, layers_n, window, kv_width * 2);
++    }
++
+     fn conv(x: *Drafter, z: u64, which: i32, base: u64, out: u64, add: bool, M: usize) !void {
+         var a: cuda.Args = .{};
+         for ([_]u64{ z, x.dyn }) |v| a.add(v);
+diff --git c/zig/src/families/inkling2/mini_sums.zig w/zig/src/families/inkling2/mini_sums.zig
+new file mode 100644
+index 0000000..7683ffd
+--- /dev/null
++++ w/zig/src/families/inkling2/mini_sums.zig
+@@ -0,0 +1,448 @@
++//! TF_INKLING2_STATE_SUMS=<file> (a test hook): a stream's state sums as JSON lines; off, one cached check a site.
++const std = @import("std");
++const cuda = @import("cuda");
++const env = @import("sys").environment;
++const mm = @import("mini_model.zig");
++const snap = @import("mini_snap.zig");
++
++/// Set once at load when TF_INKLING2_STATE_SUMS names a writable file.
++pub var on: bool = false;
++
++const gpa = std.heap.c_allocator;
++var fd: c_int = -1;
++var next_sid: u64 = 0;
++/// TF_INKLING2_STATE_SUMS_PLANT=<visit>@<position>[:<bit>]: one flipped conv bit (default bit 0), once.
++var plant: ?struct { visit: usize, position: u64, bit: u5 } = null;
++var planted = false;
++/// TF_INKLING2_STATE_SUMS_DECODE_PROMPT=<1..8>: prompt chunks as decode windows of that many rows (0: off).
++pub var decode_prompt: usize = 0;
++/// TF_INKLING2_STATE_SUMS_RAW=1: rows events also carry raw taps and the K and V rows of `raw_visits`.
++var raw = false;
++const raw_visits = [_]struct { v: usize, k: []const u8, vk: []const u8 }{ .{ .v = 47, .k = "raw_k", .vk = "raw_v" }, .{ .v = 5, .k = "raw_k5", .vk = "raw_v5" } };
++const max_ring = 16;
++
++const Draft = struct { from: u64, end: u64, n: usize, ring: [max_ring]u64 };
++const Entry = struct { sid: u64, slot: usize, draft: ?Draft = null };
++var streams: std.AutoHashMapUnmanaged(usize, Entry) = .empty;
++
++pub const Kind = enum { prompt, decode };
++pub const When = enum { prefilled, release };
++
++pub fn init() void {
++    if (fd >= 0) return;
++    const name = "TF_INKLING2_STATE_SUMS";
++    const given = (env.path(name, env.rawText(name)) catch null) orelse return;
++    const path = gpa.dupeSentinel(u8, given, 0) catch return;
++    defer gpa.free(path);
++    fd = std.c.open(path, .{ .ACCMODE = .WRONLY, .CREAT = true, .APPEND = true, .CLOEXEC = true }, @as(std.c.mode_t, 0o644));
++    if (fd < 0) return std.log.err("TF_INKLING2_STATE_SUMS: cannot open {s}", .{path});
++    on = true;
++    raw = env.read(bool, "TF_INKLING2_STATE_SUMS_RAW", false) catch false;
++    decode_prompt = env.read(u32, "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", 0) catch 0;
++    if (decode_prompt > 0) std.log.info("TF_INKLING2_STATE_SUMS_DECODE_PROMPT: prompt rows as decode windows of {d}", .{decode_prompt});
++    std.log.info("TF_INKLING2_STATE_SUMS: state sums to {s}{s}", .{ path, if (raw) " with raw rows" else "" });
++    const pname = "TF_INKLING2_STATE_SUMS_PLANT";
++    const v = (env.path(pname, env.rawText(pname)) catch null) orelse return;
++    const at = std.mem.indexOfScalar(u8, v, '@') orelse return std.log.err("{s}: <visit>@<position>[:<bit>], not {s}", .{ pname, v });
++    const colon = std.mem.indexOfScalarPos(u8, v, at, ':') orelse v.len;
++    const vi = std.fmt.parseInt(usize, v[0..at], 10) catch return std.log.err("{s}: bad visit in {s}", .{ pname, v });
++    const p = std.fmt.parseInt(u64, v[at + 1 .. colon], 10) catch return std.log.err("{s}: bad position in {s}", .{ pname, v });
++    const bit = if (colon == v.len) 0 else std.fmt.parseInt(u5, v[colon + 1 ..], 10) catch return std.log.err("{s}: bad bit in {s}", .{ pname, v });
++    plant = .{ .visit = vi, .position = p, .bit = bit };
++    std.log.info("{s}: visit {d}'s attention conv bit {d} flips once a stream passes position {d}", .{ pname, vi, bit, p });
++}
++
++fn warn(e: anyerror) void {
++    std.log.warn("TF_INKLING2_STATE_SUMS: {s}", .{@errorName(e)});
++}
++
++const Line = struct {
++    b: std.ArrayList(u8) = .empty,
++
++    fn put(l: *Line, comptime f: []const u8, a: anytype) !void {
++        try l.b.print(gpa, f, a);
++    }
++
++    fn hex(l: *Line, h: u64) !void {
++        try l.put("{x:0>16}", .{h});
++    }
++
++    fn hexes(l: *Line, hs: []const u64) !void {
++        try l.b.append(gpa, '"');
++        for (hs) |h| try l.hex(h);
++        try l.b.append(gpa, '"');
++    }
++
++    fn b64(l: *Line, bytes: []const u8) !void {
++        const enc = std.base64.standard.Encoder;
++        try l.b.append(gpa, '"');
++        const at = l.b.items.len;
++        try l.b.resize(gpa, at + enc.calcSize(bytes.len));
++        _ = enc.encode(l.b.items[at..], bytes);
++        try l.b.append(gpa, '"');
++    }
++
++    fn head(l: *Line, ev: []const u8, e: Entry) !void {
++        try l.put("{{\"ev\":\"{s}\",\"sid\":{d},\"slot\":{d}", .{ ev, e.sid, e.slot });
++    }
++
++    fn deinit(l: *Line) void {
++        l.b.deinit(gpa);
++    }
++
++    /// The line and its newline in one write (O_APPEND).
++    fn end(l: *Line) !void {
++        try l.b.appendSlice(gpa, "}\n");
++        var at: usize = 0;
++        while (at < l.b.items.len) {
++            const n = std.c.write(fd, l.b.items.ptr + at, l.b.items.len - at);
++            if (n <= 0) return error.StateSumsWrite;
++            at += @intCast(n);
++        }
++    }
++};
++
++fn entry(st: *const anyopaque, slot: usize) Entry {
++    if (streams.get(@intFromPtr(st))) |e| return e;
++    return .{ .sid = std.math.maxInt(u64), .slot = slot };
++}
++
++fn get(d: *const cuda.Driver, src: u64, out: []u8) !void {
++    try cuda.memory.download(d, src, out);
++}
++
++fn hashAt(d: *const cuda.Driver, buf: *std.ArrayList(u8), src: u64, n: usize) !u64 {
++    try buf.resize(gpa, n);
++    try get(d, src, buf.items);
++    return std.hash.Wyhash.hash(0, buf.items);
++}
++
++fn convWidth(m: *const mm.Model, site: mm.Site) usize {
++    return if (site == .k or site == .v) @as(usize, m.c.local.kv) * m.c.local.dim else m.c.hidden;
++}
++
++/// The slot's conv states, visit-major in Site order (the stream synchronized).
++fn convSums(m: *const mm.Model, slot: usize, buf: *std.ArrayList(u8), out: []u64) !void {
++    for (0..m.w.plan.visits.len) |v| for (std.enums.values(mm.Site)) |site| {
++        const n = 3 * convWidth(m, site) * 4;
++        out[v * 4 + @backingInt(site)] = try hashAt(m.d, buf, m.conv[v][@backingInt(site)] + slot * n, n);
++    };
++}
++
++fn putConv(l: *Line, m: *const mm.Model, slot: usize) !void {
++    var buf: std.ArrayList(u8) = .empty;
++    defer buf.deinit(gpa);
++    const hs = try gpa.alloc(u64, m.w.plan.visits.len * 4);
++    defer gpa.free(hs);
++    try convSums(m, slot, &buf, hs);
++    try l.put(",\"conv\":", .{});
++    try l.hexes(hs);
++}
++
++/// A prompt pass begins (once a stream): its serial, prompt and the position a kept state restored.
++pub fn open(st: *const anyopaque, slot: usize, prompt: []const u32, resume_at: usize) void {
++    openInner(st, slot, prompt, resume_at) catch |e| warn(e);
++}
++
++fn openInner(st: *const anyopaque, slot: usize, prompt: []const u32, resume_at: usize) !void {
++    const got = try streams.getOrPut(gpa, @intFromPtr(st));
++    if (!got.found_existing) {
++        got.value_ptr.* = .{ .sid = next_sid, .slot = slot };
++        next_sid += 1;
++    }
++    got.value_ptr.slot = slot;
++    var l: Line = .{};
++    defer l.deinit();
++    try l.head("open", got.value_ptr.*);
++    try l.put(",\"plen\":{d},\"ph\":\"{x:0>16}\",\"resume\":{d}", .{ prompt.len, std.hash.Wyhash.hash(0, std.mem.sliceAsBytes(prompt)), resume_at });
++    try l.end();
++}
++
++/// Visit v's K or V rows [max(p0, from), p0 + n), every key head: codes as [head][n][row], fp8 scales [head][n].
++fn kvRows(m: *const mm.Model, slot: usize, v: usize, side: usize, p0: u64, n: usize, from: u64, codes: []u8, scales: []u8) !void {
++    const full = m.w.plan.visits.steps[v].of(.full) != null;
++    const len: usize = if (full) m.full.ring else m.sliding.ring;
++    const kvh: usize = m.c.local.kv;
++    const rb: usize = @as(usize, m.c.local.dim) * @as(usize, if (m.kv8) 1 else 2);
++    for (0..kvh) |h| {
++        const base = m.kv[side][v] + ((slot * kvh + h) * len) * rb;
++        const sbase = m.kvs[side][v] + ((slot * kvh + h) * len) * 4;
++        var p: u64 = @max(p0, from);
++        while (p < p0 + n) {
++            const row: usize = @intCast(p % len);
++            const i: usize = @intCast(p - p0);
++            const run = @min(n - i, len - row);
++            try get(m.d, base + row * rb, codes[(h * n + i) * rb ..][0 .. run * rb]);
++            if (m.kv8) try get(m.d, sbase + row * 4, scales[(h * n + i) * 4 ..][0 .. run * 4]);
++            p += run;
++        }
++    }
++}
++
++/// Rows [row0, row0 + n) of a forward at positions p0..: K, V, taps, logits (0: none) and the conv states after.
++pub fn rows(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, kind: Kind, p0: u64, n: usize, len: u64, row0: usize, logits: u64) void {
++    rowsInner(m, s, st, slot, kind, p0, n, len, row0, logits) catch |e| warn(e);
++}
++
++fn rowsInner(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, kind: Kind, p0: u64, n: usize, len: u64, row0: usize, logits: u64) !void {
++    try s.synchronize();
++    const visits = m.w.plan.visits.len;
++    const kvh: usize = m.c.local.kv;
++    const rb: usize = @as(usize, m.c.local.dim) * @as(usize, if (m.kv8) 1 else 2);
++    const end = p0 + n;
++    const codes = try gpa.alloc(u8, kvh * n * rb);
++    defer gpa.free(codes);
++    const scales = try gpa.alloc(u8, kvh * n * 4);
++    defer gpa.free(scales);
++    const sums = try gpa.alloc(u64, 2 * n * visits); // [side][row][visit]
++    defer gpa.free(sums);
++    // raw rows as stored: every head's codes, then (fp8) every head's scale; empty when not kept
++    const rr = kvh * rb + @as(usize, if (m.kv8) kvh * 4 else 0);
++    const raws = try gpa.alloc(u8, if (raw) raw_visits.len * 2 * n * rr else 0);
++    defer gpa.free(raws);
++    const raw_kept = try gpa.alloc(bool, if (raw) raw_visits.len * 2 * n else 0);
++    defer gpa.free(raw_kept);
++    for (0..visits) |v| for (0..2) |side| {
++        const full = m.w.plan.visits.steps[v].of(.full) != null;
++        const ring: u64 = if (full) m.full.ring else m.sliding.ring;
++        // kept rows only: not yet overwritten, and a sliding prompt chunk's last window - 1
++        var from: u64 = end -| ring;
++        if (!full and kind == .prompt) from = @max(from, end -| (m.c.window - 1));
++        try kvRows(m, slot, v, side, p0, n, from, codes, scales);
++        for (0..n) |r| {
++            var h = std.hash.Wyhash.init(0);
++            for (0..kvh) |hd| {
++                h.update(codes[(hd * n + r) * rb ..][0..rb]);
++                if (m.kv8) h.update(scales[(hd * n + r) * 4 ..][0..4]);
++            }
++            sums[(side * n + r) * visits + v] = if (p0 + r < from) 0 else h.final();
++        }
++        if (raw) for (raw_visits, 0..) |rv, j| if (rv.v == v) for (0..n) |r| {
++            const i = (j * 2 + side) * n + r;
++            const out = raws[i * rr ..][0..rr];
++            for (0..kvh) |hd| @memcpy(out[hd * rb ..][0..rb], codes[(hd * n + r) * rb ..][0..rb]);
++            if (m.kv8) for (0..kvh) |hd| @memcpy(out[kvh * rb + hd * 4 ..][0..4], scales[(hd * n + r) * 4 ..][0..4]);
++            raw_kept[i] = p0 + r >= from;
++        };
++    };
++    const e = entry(st, slot);
++    var l: Line = .{};
++    defer l.deinit();
++    try l.head("rows", e);
++    try l.put(",\"kind\":\"{s}\",\"p0\":{d},\"n\":{d},\"len\":{d}", .{ @tagName(kind), p0, n, len });
++    for ([_][]const u8{ "k", "v" }, 0..) |key, side| {
++        try l.put(",\"{s}\":[", .{key});
++        for (0..n) |r| {
++            if (r > 0) try l.put(",", .{});
++            try l.hexes(sums[(side * n + r) * visits ..][0..visits]);
++        }
++        try l.put("]", .{});
++    }
++    var buf: std.ArrayList(u8) = .empty;
++    defer buf.deinit(gpa);
++    if (m.taps_on) {
++        const tb = m.tapRowBytes();
++        const per = tb / mm.taps_n;
++        try buf.resize(gpa, n * tb);
++        try get(m.d, m.taps + row0 * tb, buf.items);
++        try l.put(",\"tap\":[", .{});
++        for (0..n) |r| {
++            if (r > 0) try l.put(",", .{});
++            var t: [mm.taps_n]u64 = undefined;
++            for (&t, 0..) |*x, i| x.* = std.hash.Wyhash.hash(0, buf.items[r * tb + i * per ..][0..per]);
++            try l.hexes(&t);
++        }
++        try l.put("]", .{});
++        if (raw) {
++            try l.put(",\"raw_tap\":[", .{});
++            for (0..n) |r| {
++                if (r > 0) try l.put(",", .{});
++                try l.b64(buf.items[r * tb ..][0..tb]);
++            }
++            try l.put("]", .{});
++        }
++    }
++    if (raw) for (raw_visits, 0..) |rv, j| if (rv.v < visits) for ([_][]const u8{ rv.k, rv.vk }, 0..) |key, side| {
++        try l.put(",\"{s}\":[", .{key});
++        for (0..n) |r| {
++            const i = (j * 2 + side) * n + r;
++            if (r > 0) try l.put(",", .{});
++            if (raw_kept[i]) try l.b64(raws[i * rr ..][0..rr]) else try l.put("\"\"", .{});
++        }
++        try l.put("]", .{});
++    };
++    const vb = @as(usize, m.c.unpadded_vocab) * 4;
++    try l.put(",\"logit\":[", .{});
++    const entries: usize = if (kind == .prompt) @intFromBool(logits != 0) else n;
++    for (0..entries) |r| {
++        if (r > 0) try l.put(",", .{});
++        if (logits == 0) {
++            try l.put("\"\"", .{});
++        } else {
++            try l.put("\"{x:0>16}\"", .{try hashAt(m.d, &buf, logits + r * vb, vb)});
++        }
++    }
++    try l.put("]", .{});
++    try putConv(&l, m, slot);
++    try l.end();
++}
++
++/// A cut window rolled back: the stream's length and conv states after it.
++pub fn kept(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64) void {
++    keptInner(m, s, st, slot, len) catch |e| warn(e);
++}
++
++fn keptInner(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64) !void {
++    try s.synchronize();
++    var l: Line = .{};
++    defer l.deinit();
++    try l.head("keep", entry(st, slot));
++    try l.put(",\"len\":{d}", .{len});
++    try putConv(&l, m, slot);
++    try l.end();
++}
++
++/// Sums of the kept-state bytes: each run `snap.each` yields, by the buffer it lies in.
++const Each = struct {
++    m: *const mm.Model,
++    k: []std.hash.Wyhash,
++    v: []std.hash.Wyhash,
++    conv: []u64,
++    all: *std.hash.Wyhash,
++    buf: *std.ArrayList(u8),
++
++    fn in(dev: u64, base: u64, n: usize) bool {
++        return dev >= base and dev < base + n;
++    }
++
++    fn take(c: Each, dev: u64, _: usize, len: usize) anyerror!void {
++        const m = c.m;
++        try c.buf.resize(gpa, len);
++        try get(m.d, dev, c.buf.items);
++        c.all.update(c.buf.items);
++        const kvw: usize = @as(usize, m.c.local.kv) * m.c.local.dim;
++        for (m.w.plan.visits.slice(), 0..) |step, v| {
++            const ring: usize = if (step.of(.full) != null) m.full.ring else m.sliding.ring;
++            const cb = m.slots * ring * kvw * @as(usize, if (m.kv8) 1 else 2);
++            const sb = m.slots * ring * @as(usize, m.c.local.kv) * 4;
++            for (0..2) |side| if (in(dev, m.kv[side][v], cb) or (m.kv8 and in(dev, m.kvs[side][v], sb))) {
++                (if (side == 0) c.k else c.v)[v].update(c.buf.items);
++                return;
++            };
++            for (std.enums.values(mm.Site)) |site| if (in(dev, m.conv[v][@backingInt(site)], m.slots * 3 * convWidth(m, site) * 4)) {
++                c.conv[v * 4 + @backingInt(site)] = std.hash.Wyhash.hash(0, c.buf.items);
++                return;
++            };
++        }
++        return error.StateSumsUnknownRun;
++    }
++};
++
++/// The kept-state sums of the slot at `at` (the prompt pass's end, or the stream's length at release).
++pub fn keptState(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, at: u64, when: When) void {
++    snapInner(m, s, st, slot, at, when) catch |e| warn(e);
++}
++
++fn snapInner(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, at: u64, when: When) !void {
++    try s.synchronize();
++    const visits = m.w.plan.visits.len;
++    const hs = try gpa.alloc(std.hash.Wyhash, 2 * visits);
++    defer gpa.free(hs);
++    for (hs) |*h| h.* = std.hash.Wyhash.init(0);
++    const conv = try gpa.alloc(u64, visits * 4);
++    defer gpa.free(conv);
++    @memset(conv, 0);
++    var all = std.hash.Wyhash.init(0);
++    var buf: std.ArrayList(u8) = .empty;
++    defer buf.deinit(gpa);
++    try snap.each(m, slot, @intCast(at), Each{ .m = m, .k = hs[0..visits], .v = hs[visits..], .conv = conv, .all = &all, .buf = &buf }, Each.take);
++    const e = entry(st, slot);
++    var l: Line = .{};
++    defer l.deinit();
++    try l.head("snap", e);
++    try l.put(",\"at\":{d},\"when\":\"{s}\"", .{ at, @tagName(when) });
++    for ([_][]const u8{ "k", "v" }, 0..) |key, side| {
++        try l.put(",\"{s}\":\"", .{key});
++        for (hs[side * visits ..][0..visits]) |*h| try l.hex(h.final());
++        try l.put("\"", .{});
++    }
++    try l.put(",\"conv\":", .{});
++    try l.hexes(conv);
++    try l.put(",\"all\":\"{x:0>16}\"", .{all.final()});
++    if (when == .release) if (e.draft) |dr| {
++        try l.put(",\"draft\":{{\"kind\":\"dflash2\",\"from\":{d},\"end\":{d},\"ring\":", .{ dr.from, dr.end });
++        try l.hexes(dr.ring[0..dr.n]);
++        try l.put("}}", .{});
++    };
++    try l.end();
++}
++
++/// The stream's lane goes: its kept-state sums (when its prompt pass finished), then its entry.
++pub fn release(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64, prefilled: bool) void {
++    if (prefilled) keptState(m, s, st, slot, len, .release);
++    _ = streams.remove(@intFromPtr(st));
++}
++
++/// A DFlash2 ring's K then V a layer over positions [max(from, end - window), end): the release snap's, else an event.
++pub fn draft(d: *const cuda.Driver, s: cuda.Stream, st: *const anyopaque, when: When, ring: u64, from: u64, end: u64, layers: usize, window: usize, row: usize) void {
++    draftInner(d, s, st, when, ring, from, end, layers, window, row) catch |e| warn(e);
++}
++
++fn draftInner(d: *const cuda.Driver, s: cuda.Stream, st: *const anyopaque, when: When, ring: u64, from: u64, end: u64, layers: usize, window: usize, row: usize) !void {
++    if (2 * layers > max_ring) return error.StateSumsRing;
++    try s.synchronize();
++    var dr: Draft = .{ .from = from, .end = end, .n = 2 * layers, .ring = @splat(0) };
++    var buf: std.ArrayList(u8) = .empty;
++    defer buf.deinit(gpa);
++    const lo = @max(from, end -| window);
++    for (0..2 * layers) |i| {
++        const base = ring + i * window * row;
++        var h = std.hash.Wyhash.init(0);
++        var p = lo;
++        while (p < end) {
++            const r: usize = @intCast(p % window);
++            const run: usize = @intCast(@min(end - p, window - r));
++            try buf.resize(gpa, run * row);
++            try get(d, base + r * row, buf.items);
++            h.update(buf.items);
++            p += run;
++        }
++        dr.ring[i] = h.final();
++    }
++    const got = streams.getPtr(@intFromPtr(st));
++    if (when == .release) {
++        if (got) |e| e.draft = dr;
++        return;
++    }
++    var l: Line = .{};
++    defer l.deinit();
++    try l.head("draft", if (got) |e| e.* else Entry{ .sid = std.math.maxInt(u64), .slot = 0 });
++    try l.put(",\"when\":\"{s}\",\"from\":{d},\"end\":{d},\"ring\":", .{ @tagName(when), from, end });
++    try l.hexes(dr.ring[0..dr.n]);
++    try l.end();
++}
++
++/// Before a decode call past the planted position: a bit of visit V's first attention conv fp32 flips, once.
++pub fn plantAt(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64) void {
++    const p = plant orelse return;
++    if (planted or len <= p.position) return;
++    planted = true;
++    plantInner(m, s, st, slot, len, p.visit, p.position, p.bit) catch |e| warn(e);
++}
++
++fn plantInner(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64, v: usize, position: u64, bit: u5) !void {
++    if (v >= m.w.plan.visits.len) return error.StateSumsPlantVisit;
++    try s.synchronize();
++    const at = m.conv[v][@backingInt(mm.Site.attn)] + slot * 3 * convWidth(m, .attn) * 4;
++    var w: [1]u32 = undefined;
++    try get(m.d, at, std.mem.sliceAsBytes(&w));
++    w[0] ^= @as(u32, 1) << bit;
++    const view: cuda.DeviceBuffer = .{ .d = m.d, .ptr = at, .len = 4, .borrowed = true };
++    try view.upload(0, std.mem.sliceAsBytes(&w));
++    try s.synchronize();
++    var l: Line = .{};
++    defer l.deinit();
++    try l.head("plant", entry(st, slot));
++    try l.put(",\"visit\":{d},\"position\":{d},\"bit\":{d},\"len\":{d}", .{ v, position, bit, len });
++    try l.end();
++}
+diff --git c/zig/src/platform/environment.zig w/zig/src/platform/environment.zig
+index 33df3ad..015e175 100644
+--- c/zig/src/platform/environment.zig
++++ w/zig/src/platform/environment.zig
+@@ -54,6 +54,10 @@ pub const rules = [_]Rule{
+     .{ .name = "TENSORFOLD_TOOL_ID_KEY_FILE", .scope = .common, .kind = .path, .forms = "a path without control characters to a file only its owner can read, holding at least 32 key bytes" },
+     .{ .name = "TENSORFOLD_CUDA_KERNELS", .scope = .cuda, .kind = .path, .forms = "a captured kernel set's folder without control characters, or native for the engine's own kernels" },
+     .{ .name = "TF_NCCL_LIB", .scope = .cuda, .kind = .path, .forms = "an NCCL library path without control characters, or blank for libnccl.so.2" },
++    .{ .name = "TF_INKLING2_STATE_SUMS", .scope = .cuda, .kind = .path, .forms = "a file path without control characters for Inkling 2 Mini's state sums (a test hook; unset or blank: off)" },
++    .{ .name = "TF_INKLING2_STATE_SUMS_RAW", .scope = .cuda, .kind = .flag, .forms = "0 or 1 (1 adds raw taps and K/V rows to TF_INKLING2_STATE_SUMS; default 0)" },
++    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", .scope = .cuda, .kind = .u32, .max = 8, .forms = "a whole row count from 0 to 8: prompt rows as decode windows that wide (with TF_INKLING2_STATE_SUMS; 0: off)" },
++    .{ .name = "TF_INKLING2_STATE_SUMS_PLANT", .scope = .cuda, .kind = .path, .forms = "visit@position or visit@position:bit without control characters: one conv bit flipped once (with TF_INKLING2_STATE_SUMS)" },
+     .{ .name = "TF_CUDA_DEVICE", .scope = .cuda, .kind = .device, .trim = " ", .forms = "a whole GPU ordinal from 0 to 4294967295, or empty for the default" },
+     .{ .name = "TF_CUDA_SEGMENTS", .scope = .cuda, .kind = .segments, .trim = " ", .forms = "a whole number from 1 to 4, or empty for the default" },
+     .{ .name = "TF_CUDA_CARVEOUT", .scope = .cuda, .kind = .flag, .forms = "0 or 1" },
+diff --git c/zig/src/platform/environment_test.zig w/zig/src/platform/environment_test.zig
+index e4aabc2..581e2b5 100644
+--- c/zig/src/platform/environment_test.zig
++++ w/zig/src/platform/environment_test.zig
+@@ -176,6 +176,12 @@ const valid = [_]Case{
+     .{ .name = "TF_SLIDE_POCKET_DUMP", .raw = "/tmp/pocket rows", .n = 0 },
+     .{ .name = "TENSORFOLD_CUDA_KERNELS", .raw = "/tmp/captured set", .n = 0 },
+     .{ .name = "TF_NCCL_LIB", .raw = "/fixture/nccl/libnccl.so.2", .n = 0 },
++    .{ .name = "TF_INKLING2_STATE_SUMS", .raw = "/tmp/state sums.jsonl", .n = 0 },
++    .{ .name = "TF_INKLING2_STATE_SUMS_PLANT", .raw = "20@512", .n = 0 },
++    .{ .name = "TF_INKLING2_STATE_SUMS_RAW", .raw = "0", .n = 0 },
++    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", .raw = "0", .n = 0 },
++    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", .raw = "8", .n = 8 },
++    .{ .name = "TF_INKLING2_STATE_SUMS_RAW", .raw = "1", .n = 1 },
+     .{ .name = "TF_SLIDE_FORGET_FAIL", .raw = " 0 ", .n = 0 },
+     .{ .name = "TF_METAL4", .raw = "0", .n = 0 },
+     .{ .name = "TF_METAL4", .raw = "1", .n = 1 },
