@@ -42,6 +42,13 @@ License, Version 2.0 ([`LICENSE`](LICENSE)). The image `scripts/prepare.sh` buil
   `--prompt-cache-disk` reads. It joins TensorFold's NVMe session tier: ashhart's kept states written behind to disk and read back
   (`native/cuda_disk.zig`, `--learn-conversations`) and Jürgen Schmied's one kept image for states in device buffers
   (`native/cuda_kept.zig`, [#3135](https://github.com/ashhart/TensorFold/pull/3135)).
+- **Jay Leaton** ([jayleaton](https://github.com/jayleaton)): the compute lane (patches `0020`–`0024`), ported from the
+  [DeepSeek V4.1 Spark kit](https://github.com/jayleaton/deepseek-v41-tensorfold-spark). `0020`–`0022` are its TensorFold commits
+  `bc36b025f` (the Landlock and seccomp sandbox), `7211fc665` (the engine-native hold) and `3adb042bb` (niceness); `0023` serves the
+  lane for any lane-hosted family; `0024` follows the kit's patches 0206–0207 for Inkling's reply reader. The lane builds on
+  TensorFold's lane host, engine API and HTTP server, by Ash Hart ([ashhart](https://github.com/ashhart)) with
+  [laudney](https://github.com/laudney), [BobClawblaw](https://github.com/BobClawblaw) and
+  [plotarmordev](https://github.com/plotarmordev), the main other authors of the files it edits.
 - **[xgrammar](https://github.com/mlc-ai/xgrammar)** by the MLC-AI team (Apache-2.0): `libtfgrammar.so`, built from the patched tree over xgrammar
   v0.2.8 at its pinned commit (its license, NOTICE and dlpack's license ship in the image).
 - **[libjpeg-turbo](https://libjpeg-turbo.org)** 3.1.4.1 (IJG, BSD-3-Clause and zlib licenses) and **[libwebp](https://chromium.googlesource.com/webm/libwebp)**
