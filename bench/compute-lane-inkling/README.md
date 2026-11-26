@@ -58,8 +58,8 @@ nohup ./run.sh ~/work/ink-runs/freeze spark2 c32k s01 s02 s03 s04 s05 s06 > ~/wo
 nohup ./run.sh ~/work/ink-runs/freeze spark2 c32k c01 c02 > ~/work/ink-runs/c32k-compute-dl.log 2>&1
 ```
 
-Run the two lines of a Spark one after the other (for example `nohup bash -c '…; …' &`), never at the same
-time. Each turn is three boots in the frozen order, all three arms, for example:
+Run the two lines of a Spark one after the other, joined with `&&` (for example `nohup bash -c '… && …' &`),
+never at the same time. `run.sh` exits non-zero when a boot ends `STOPPED`, so `&&` keeps the next pass from starting. Each turn is three boots in the frozen order, all three arms, for example:
 
 - s01: P, L, T.
 - c01: P, L, T.

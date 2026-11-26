@@ -205,10 +205,10 @@ def compute_calls(tf):
 
 
 def successful_call(call):
-    """A delivered successful lane call: inserted, status ok and exit 0. A call the in-model runner ran (S3, arm T)
-    has no process and reports exit_code null; it counts as successful with status ok."""
+    """A delivered successful lane call: inserted and status ok. The engine reports status ok only for a clean exit,
+    and sets exit_code only when it is non-zero (patch 0020: `if (code != 0) r.exit_code = code`), so a sandbox call
+    that exited 0 has exit_code null. A call the in-model runner ran (S3, arm T) has no process and also reports
+    exit_code null. Any exit_code other than null or 0 is not a success."""
     if call.get('status') != 'ok' or call.get('inserted') is not True:
         return False
-    if call.get('executor') == 'in-model runner':
-        return call.get('exit_code') in (None, 0)
-    return call.get('exit_code') == 0
+    return call.get('exit_code') in (None, 0)

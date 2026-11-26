@@ -78,7 +78,9 @@ def units():
     assert common.successful_call(ok) and not common.successful_call(dict(ok, exit_code=1))
     assert not common.successful_call(dict(ok, inserted=False))
     assert common.successful_call(dict(ok, exit_code=None, executor='in-model runner'))
-    assert not common.successful_call(dict(ok, exit_code=None, executor='code tool'))
+    assert common.successful_call(dict(ok, exit_code=None, executor='code tool'))  # the engine's clean sandbox exit
+    assert common.successful_call(dict(ok, exit_code=None))  # arm L: no executor field
+    assert not common.successful_call(dict(ok, status='exit_error', exit_code=None))
     assert common.runner_owned({'runner': {'inline': {'owned': 2}, 'fence': {'owned': 1}, 'x': {'owned': 9}}}) == 3
     import base64
 

@@ -139,7 +139,7 @@ class Model:
                 output = output + '0'
             runner = arm == 'T' and unit('exec', self.id, self.seed, index) < .5 and ref['status'] == 'ok'
             call = {'name': 'python', 'id': None if index else f'call_{self.number}_{index}', 'code': code,
-                    'status': ref['status'], 'exit_code': None if runner else ref['exit_code'],
+                    'status': ref['status'], 'exit_code': None if runner or ref['status'] == 'ok' else ref['exit_code'],
                     'exec_ms': 3, 'output': output, 'inserted': True}
             if arm == 'T':
                 call.update(call_ms=4, executor='in-model runner' if runner else 'code tool',

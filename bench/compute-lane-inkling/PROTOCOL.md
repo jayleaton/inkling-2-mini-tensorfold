@@ -166,3 +166,10 @@ the block's frozen order.
 10. Runner cells (T) have no independent value oracle. They are counted only.
 11. No CPU prompt arrays exist, so initial-prompt and processed-input totals are missing evidence (never zero).
 12. A fresh per-boot SESSION_DIR is used (section 3).
+13. **Void first attempt (2026-11-26, freeze root `8bedc088…`).** The harness counted a lane call as successful only
+    with `exit_code` 0. This engine reports `exit_code` only when it is non-zero (patch 0020), so a clean sandbox
+    exit has `exit_code` null. The first L boot (`c8k-s01-L`) therefore failed its activation gate although its
+    diagnostic call ran and delivered the reference bytes (`55`, matched by the jail). Collection stopped on both
+    Sparks before any L or T dataset request. The rule now accepts `status` ok with `exit_code` null or 0. The
+    harness was re-frozen under a new root and every turn was collected again from the start. The void attempt's
+    rows are kept on each Spark under `~/work/ink-runs/void-8bedc088/` and are not part of any result.
