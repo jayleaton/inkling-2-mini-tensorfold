@@ -1,4 +1,4 @@
-Inkling-2-Mini-Derisked on one DGX Spark with TensorFold
+Inkling 2 Mini with TensorFold: the DGX Spark (CUDA) recipe and the Mac (Metal) recipe
 Copyright 2026 MiaAI-Lab
 
 This project's own code, scripts and documentation are licensed under the Apache License, Version 2.0 (see LICENSE).
@@ -79,5 +79,22 @@ Inkling-2-Mini-DFlash2 (a local folder; not included in this repository or its i
   scripts/config.sh and scripts/prepare.sh checks its SHA-256; it is mounted read-only into the container. Nothing of
   it is copied, modified or redistributed by this project. DFlash (https://github.com/z-lab/dflash, MIT) is the method
   it follows.
+
+The Mac (Metal) recipe (mac/)
+  This project's own scripts under the Apache License, Version 2.0 (mac/start.sh, mac/stop.sh, mac/scripts/, and the shared tools/). The Mac
+  build shares no code with the CUDA recipe above: the engine is TensorFold's own native Metal Inkling 2 Mini, built by mac/scripts/prepare.sh
+  from upstream https://github.com/ashhart/TensorFold main pinned at commit 920fe22c97995d3dae9bed3e320f08aaa64c25ae, under TensorFold's
+  licenses and notices as above (Apache License, Version 2.0, and for code written before 0.6.0 also its MIT notice, whose text is above).
+  The files in mac/patches/ are not this project's work: patch 0001 is Seth For Privacy's (sethforprivacy) change from
+  https://github.com/ashhart/TensorFold/pull/4622 and patch 0002 is Christian Schröder's (cwschroeder) from
+  https://github.com/ashhart/TensorFold/pull/4917. Applied to the pinned checkout with git apply, they modify TensorFold's source and stay
+  under TensorFold's licenses, so keep TensorFold's NOTICE and this notice's TensorFold terms with any copy of the patched tree.
+  libtfgrammar.dylib is built on the Mac from upstream xgrammar v0.2.8 (https://github.com/mlc-ai/xgrammar, MLC-AI team, Apache License,
+  Version 2.0, with DLPack as above), cloned at that tag by mac/scripts/prepare.sh; nothing of it is modified here.
+  The Mac recipe serves upstream thinkingmachines/Inkling-2-Mini by Thinking Machines (Apache License 2.0, with the Model Acceptable Use
+  Policy at https://thinkingmachines.ai/model-acceptable-use-policy/) and drafts with https://huggingface.co/incoai/Inkling-2-Mini-DFlash2 by
+  Inco AI (Apache License, Version 2.0) at the revision pinned in mac/scripts/config.sh; both stay local folders, not included in or
+  redistributed by this repository. DFlash (https://github.com/z-lab/dflash, MIT) is the method the draft model follows, as above.
+  Zig 0.17.0 (as above) compiles the engine at build time on the Mac as well. No NVIDIA software is part of the Mac build.
 
 See CREDITS.md for everyone this project builds on.
