@@ -2,8 +2,10 @@
 
   q1.py lane    --out DIR [--cases 1,2] [--samplers greedy,t07] [--sums FILE] [--light]
   q1.py control --out DIR [--samplers ...] [--sums FILE]       the no-lane baseline (arm N)
-  q1.py ref     --out DIR --from DIR --sums FILE               each arm A history of --from but its last token, cold, on
-                                                               a boot whose prompt pass runs the decode rows (check R)
+  q1.py ref     --out DIR --from DIR --sums FILE --decode-from FILE
+                                                               each arm A history of --from but its last token, cold: the
+                                                               prompt as a prompt pass, every later row as decode rows with
+                                                               no hold, no forced queue and no resume (check R)
   q1.py disk    --out DIR --restart "CMD" [--cases 2,7]         arm D: a restart between rounds (states on the NVMe)
 
 Every check is one JSON line in DIR/rows.jsonl: {"check", "ok", ...}. Runs on the Spark (the flush is loopback only).
@@ -495,7 +497,7 @@ def disk(run, cases, samplers, command, sessions):
     return run.bad
 
 
-def ref(run, source, cases, samplers):
+def ref(run, source, cases, samplers, decode_from):
     for sampler in samplers:
         for case in cases:
             path = os.path.join(source, "ids", f"{case}-{sampler}.json")
@@ -504,6 +506,8 @@ def ref(run, source, cases, samplers):
             a = json.load(open(path))
             whole = a["prompt"] + a["continuation"]
             lli.flush()
+            with open(decode_from, "w") as f:
+                f.write(str(len(a["prompt"])))
             start = run.mark()
             last = lli.complete(whole[:-1], sampler, 1)
             run.equal("R", lli.ids_of(last), whole[-1:], case=case, sampler=sampler, history=len(whole) - 1, sums=run.span(start))
@@ -514,6 +518,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["lane", "control", "disk", "ref"])
     ap.add_argument("--from", dest="source")
+    ap.add_argument("--decode-from", help="the host file the engine reads TF_INKLING2_STATE_SUMS_DECODE_FROM's position from")
     ap.add_argument("--out", required=True)
     ap.add_argument("--cases", default=",".join(str(c) for c in CASES))
     ap.add_argument("--samplers", default="greedy,t10,t07")
@@ -530,7 +535,7 @@ def main():
     elif args.mode == "control":
         bad = control(run, samplers)
     elif args.mode == "ref":
-        bad = ref(run, args.source, cases, samplers)
+        bad = ref(run, args.source, cases, samplers, args.decode_from)
     else:
         bad = disk(run, cases, samplers, args.restart, args.sessions)
     print(f"SUMMARY failed_checks={bad}")

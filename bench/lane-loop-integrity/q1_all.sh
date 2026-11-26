@@ -2,8 +2,8 @@
 # Q1's boots in order on one Spark: each phase boots its engine (boot.sh), runs q1.py against it and stops it.
 #   q1_all.sh <out dir> <phase>...     phases: S X S0 X-dspark S-off, or with the patched image (IMAGE):
 #     X-sums S-sums   the lane cases with state sums
-#     X-ref S-ref     each of that run's histories again, its prompt pass through the decode rows (REF_DRAFTER)
-#     X-plant         case 1 with a conv bit flipped (PLANT=<visit>@<position>)
+#     X-decode S-decode   each of that run's histories again: the prompt prefilled, the rest as plain decode rows
+#     X-plant             case 1 with a visit's conv state bit-flipped (PLANT=<visit>@<position>[:bit])
 #   X-disk S-disk     arm D again on that phase's arm A histories
 # A phase's failed checks do not stop the next phase; every phase leaves <out>/<phase>/{rows.jsonl,ids/,log,exit}.
 set -uo pipefail
@@ -55,10 +55,14 @@ for phase in "$@"; do
       boot "${phase%%-*}" dflash2 "$sessions" "$dir/sums" || { echo "boot failed" > "$dir/exit"; continue; }
       python3 "$kit/q1.py" lane --light --samplers greedy,t07 --sums "$dir/sums/sums.jsonl" --out "$dir" >> "$dir/log" 2>&1 || status=1
       ;;
-    X-ref|S-ref)
-      boot "${phase%%-*}" "${REF_DRAFTER:-dflash2}" "$sessions" "$dir/sums" TF_INKLING2_STATE_SUMS_DECODE_PROMPT=8 ||
+    X-decode|S-decode)
+      mkdir -p "$dir/sums"
+      echo 1000000000 > "$dir/sums/decode_from"
+      boot "${phase%%-*}" dflash2 "$sessions" "$dir/sums" \
+        "TF_INKLING2_STATE_SUMS_DECODE_PROMPT=8 TF_INKLING2_STATE_SUMS_DECODE_FROM=/sums/decode_from" ||
         { echo "boot failed" > "$dir/exit"; continue; }
-      python3 "$kit/q1.py" ref --from "$out/${phase%%-*}-sums" --samplers greedy,t07 --sums "$dir/sums/sums.jsonl" --out "$dir" >> "$dir/log" 2>&1 || status=1
+      python3 "$kit/q1.py" ref --from "$out/${phase%%-*}-sums" --samplers greedy,t07 --sums "$dir/sums/sums.jsonl" \
+        --decode-from "$dir/sums/decode_from" --out "$dir" >> "$dir/log" 2>&1 || status=1
       ;;
     X-plant)
       boot X dflash2 "$sessions" "$dir/sums" "TF_INKLING2_STATE_SUMS_PLANT=${PLANT:?}" || { echo "boot failed" > "$dir/exit"; continue; }

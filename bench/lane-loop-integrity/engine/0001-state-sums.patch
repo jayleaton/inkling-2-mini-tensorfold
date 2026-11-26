@@ -1,5 +1,5 @@
 diff --git c/zig/src/families/inkling2/mini_backend.zig w/zig/src/families/inkling2/mini_backend.zig
-index 94cbc10..04018fc 100644
+index 94cbc10..6c99f04 100644
 --- c/zig/src/families/inkling2/mini_backend.zig
 +++ w/zig/src/families/inkling2/mini_backend.zig
 @@ -7,6 +7,7 @@ const lanes = @import("lanes");
@@ -30,7 +30,7 @@ index 94cbc10..04018fc 100644
          const at = l.fill.?;
          if (s.isCancelled()) return error.Cancelled;
          var end = @min(p.len, (at / prompt_rows + 1) * prompt_rows);
-+        if (sums.decode_prompt > 0) end = @min(end, at + sums.decode_prompt);
++        if (sums.decode_prompt > 0) end = sums.chunkEnd(s, at, end);
          for (s.reuse.marks) |mk| if (mk > at and mk < end) {
              end = mk;
          };
@@ -40,7 +40,7 @@ index 94cbc10..04018fc 100644
          defer x.m.vision_slot = null;
 -        try x.m.forward(x.k, x.s, &.{.{ .slot = l.slot, .p0 = at, .tokens = p[at..end] }}, true, end - at - 1, @intFromBool(done));
 -        if (done) try x.d.check(x.d.api.cuMemcpyDtoDAsync_v2(l.last, x.m.s.logits, x.vocab() * 4, x.s.handle), "cuMemcpyDtoDAsync");
-+        if (sums.decode_prompt > 0) {
++        if (sums.decode_prompt > 0 and sums.decodes(s, at)) {
 +            try x.decodeChunk(l, p[at..end], at, done);
 +        } else {
 +            try x.m.forward(x.k, x.s, &.{.{ .slot = l.slot, .p0 = at, .tokens = p[at..end] }}, true, end - at - 1, @intFromBool(done));
@@ -54,7 +54,7 @@ index 94cbc10..04018fc 100644
          l.fill = if (done) null else end;
          if (done) l.len = p.len;
 +        if (sums.on) {
-+            const dp = sums.decode_prompt > 0;
++            const dp = sums.decode_prompt > 0 and sums.decodes(s, at);
 +            sums.rows(x.m, x.s, s, l.slot, if (dp) .decode else .prompt, at, end - at, end, 0, if (dp) x.m.s.logits else if (done) l.last else 0);
 +            if (done) sums.keptState(x.m, x.s, s, l.slot, p.len, .prefilled);
 +        }
@@ -169,10 +169,10 @@ index f1dcf24..3b20efc 100644
          for ([_]u64{ z, x.dyn }) |v| a.add(v);
 diff --git c/zig/src/families/inkling2/mini_sums.zig w/zig/src/families/inkling2/mini_sums.zig
 new file mode 100644
-index 0000000..7683ffd
+index 0000000..cf3af5e
 --- /dev/null
 +++ w/zig/src/families/inkling2/mini_sums.zig
-@@ -0,0 +1,448 @@
+@@ -0,0 +1,492 @@
 +//! TF_INKLING2_STATE_SUMS=<file> (a test hook): a stream's state sums as JSON lines; off, one cached check a site.
 +const std = @import("std");
 +const cuda = @import("cuda");
@@ -197,7 +197,9 @@ index 0000000..7683ffd
 +const max_ring = 16;
 +
 +const Draft = struct { from: u64, end: u64, n: usize, ring: [max_ring]u64 };
-+const Entry = struct { sid: u64, slot: usize, draft: ?Draft = null };
++const Entry = struct { sid: u64, slot: usize, draft: ?Draft = null, decode_from: u64 = 0 };
++/// TF_INKLING2_STATE_SUMS_DECODE_FROM=<file>: its decimal N, read as each prompt pass begins (rows from N decode).
++var decode_from: ?[:0]u8 = null;
 +var streams: std.AutoHashMapUnmanaged(usize, Entry) = .empty;
 +
 +pub const Kind = enum { prompt, decode };
@@ -215,6 +217,9 @@ index 0000000..7683ffd
 +    raw = env.read(bool, "TF_INKLING2_STATE_SUMS_RAW", false) catch false;
 +    decode_prompt = env.read(u32, "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", 0) catch 0;
 +    if (decode_prompt > 0) std.log.info("TF_INKLING2_STATE_SUMS_DECODE_PROMPT: prompt rows as decode windows of {d}", .{decode_prompt});
++    const fname = "TF_INKLING2_STATE_SUMS_DECODE_FROM";
++    if (env.path(fname, env.rawText(fname)) catch null) |f| decode_from = gpa.dupeSentinel(u8, f, 0) catch null;
++    if (decode_from) |f| std.log.info("{s}: prompt rows decode from the position in {s}", .{ fname, f });
 +    std.log.info("TF_INKLING2_STATE_SUMS: state sums to {s}{s}", .{ path, if (raw) " with raw rows" else "" });
 +    const pname = "TF_INKLING2_STATE_SUMS_PLANT";
 +    const v = (env.path(pname, env.rawText(pname)) catch null) orelse return;
@@ -319,6 +324,29 @@ index 0000000..7683ffd
 +    openInner(st, slot, prompt, resume_at) catch |e| warn(e);
 +}
 +
++/// A file's decimal position; missing, empty or unparsable: 0.
++fn readPosition(path: [:0]const u8) u64 {
++    const f = std.c.open(path, .{ .ACCMODE = .RDONLY, .CLOEXEC = true });
++    if (f < 0) return 0;
++    defer _ = std.c.close(f);
++    var b: [32]u8 = undefined;
++    const n = std.c.read(f, &b, b.len);
++    if (n <= 0) return 0;
++    return std.fmt.parseInt(u64, std.mem.trim(u8, b[0..@intCast(n)], " \t\r\n"), 10) catch 0;
++}
++
++/// DECODE_PROMPT: whether the stream's chunk at `at` runs as decode windows (at or past its DECODE_FROM position).
++pub fn decodes(st: *const anyopaque, at: usize) bool {
++    const e = streams.get(@intFromPtr(st)) orelse return true;
++    return at >= e.decode_from;
++}
++
++/// DECODE_PROMPT: a chunk's end, clamped to the decode start, or to one decode window past it.
++pub fn chunkEnd(st: *const anyopaque, at: usize, end: usize) usize {
++    const from: usize = if (streams.get(@intFromPtr(st))) |e| @intCast(@min(e.decode_from, std.math.maxInt(usize))) else 0;
++    return if (at < from) @min(end, from) else @min(end, at + decode_prompt);
++}
++
 +fn openInner(st: *const anyopaque, slot: usize, prompt: []const u32, resume_at: usize) !void {
 +    const got = try streams.getOrPut(gpa, @intFromPtr(st));
 +    if (!got.found_existing) {
@@ -326,6 +354,7 @@ index 0000000..7683ffd
 +        next_sid += 1;
 +    }
 +    got.value_ptr.slot = slot;
++    got.value_ptr.decode_from = if (decode_from) |f| readPosition(f) else 0;
 +    var l: Line = .{};
 +    defer l.deinit();
 +    try l.head("open", got.value_ptr.*);
@@ -597,7 +626,7 @@ index 0000000..7683ffd
 +    try l.end();
 +}
 +
-+/// Before a decode call past the planted position: a bit of visit V's first attention conv fp32 flips, once.
++/// Before a decode call past the planted position: one bit of every fp32 in visit V's attention conv state flips, once.
 +pub fn plantAt(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64) void {
 +    const p = plant orelse return;
 +    if (planted or len <= p.position) return;
@@ -608,44 +637,61 @@ index 0000000..7683ffd
 +fn plantInner(m: *const mm.Model, s: cuda.Stream, st: *const anyopaque, slot: usize, len: u64, v: usize, position: u64, bit: u5) !void {
 +    if (v >= m.w.plan.visits.len) return error.StateSumsPlantVisit;
 +    try s.synchronize();
-+    const at = m.conv[v][@backingInt(mm.Site.attn)] + slot * 3 * convWidth(m, .attn) * 4;
-+    var w: [1]u32 = undefined;
-+    try get(m.d, at, std.mem.sliceAsBytes(&w));
-+    w[0] ^= @as(u32, 1) << bit;
-+    const view: cuda.DeviceBuffer = .{ .d = m.d, .ptr = at, .len = 4, .borrowed = true };
-+    try view.upload(0, std.mem.sliceAsBytes(&w));
++    const n = 3 * convWidth(m, .attn);
++    const at = m.conv[v][@backingInt(mm.Site.attn)] + slot * n * 4;
++    const w = try gpa.alloc(u32, n);
++    defer gpa.free(w);
++    try get(m.d, at, std.mem.sliceAsBytes(w));
++    const first: f32 = @bitCast(w[0]);
++    var changed: usize = 0;
++    var most: f32 = 0;
++    for (w) |*x| {
++        const old: f32 = @bitCast(x.*);
++        x.* ^= @as(u32, 1) << bit;
++        const d = @abs(@as(f32, @bitCast(x.*)) - old);
++        changed += @intFromBool(d > 0);
++        if (d > most) most = d;
++    }
++    const view: cuda.DeviceBuffer = .{ .d = m.d, .ptr = at, .len = n * 4, .borrowed = true };
++    try view.upload(0, std.mem.sliceAsBytes(w));
 +    try s.synchronize();
++    const back = try gpa.alloc(u32, n);
++    defer gpa.free(back);
++    try get(m.d, at, std.mem.sliceAsBytes(back));
++    if (!std.mem.eql(u32, w, back)) return error.StateSumsPlantNotWritten;
 +    var l: Line = .{};
 +    defer l.deinit();
 +    try l.head("plant", entry(st, slot));
-+    try l.put(",\"visit\":{d},\"position\":{d},\"bit\":{d},\"len\":{d}", .{ v, position, bit, len });
++    try l.put(",\"visit\":{d},\"position\":{d},\"bit\":{d},\"len\":{d},\"elements\":{d},\"changed\":{d},\"max_delta\":{e},\"first_before\":{e}", .{ v, position, bit, len, n, changed, most, first });
 +    try l.end();
 +}
 diff --git c/zig/src/platform/environment.zig w/zig/src/platform/environment.zig
-index 33df3ad..015e175 100644
+index 33df3ad..8023ac0 100644
 --- c/zig/src/platform/environment.zig
 +++ w/zig/src/platform/environment.zig
-@@ -54,6 +54,10 @@ pub const rules = [_]Rule{
+@@ -54,6 +54,11 @@ pub const rules = [_]Rule{
      .{ .name = "TENSORFOLD_TOOL_ID_KEY_FILE", .scope = .common, .kind = .path, .forms = "a path without control characters to a file only its owner can read, holding at least 32 key bytes" },
      .{ .name = "TENSORFOLD_CUDA_KERNELS", .scope = .cuda, .kind = .path, .forms = "a captured kernel set's folder without control characters, or native for the engine's own kernels" },
      .{ .name = "TF_NCCL_LIB", .scope = .cuda, .kind = .path, .forms = "an NCCL library path without control characters, or blank for libnccl.so.2" },
 +    .{ .name = "TF_INKLING2_STATE_SUMS", .scope = .cuda, .kind = .path, .forms = "a file path without control characters for Inkling 2 Mini's state sums (a test hook; unset or blank: off)" },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_RAW", .scope = .cuda, .kind = .flag, .forms = "0 or 1 (1 adds raw taps and K/V rows to TF_INKLING2_STATE_SUMS; default 0)" },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", .scope = .cuda, .kind = .u32, .max = 8, .forms = "a whole row count from 0 to 8: prompt rows as decode windows that wide (with TF_INKLING2_STATE_SUMS; 0: off)" },
++    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_FROM", .scope = .cuda, .kind = .path, .forms = "a file path without control characters holding the position decode windows start from (with TF_INKLING2_STATE_SUMS_DECODE_PROMPT)" },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_PLANT", .scope = .cuda, .kind = .path, .forms = "visit@position or visit@position:bit without control characters: one conv bit flipped once (with TF_INKLING2_STATE_SUMS)" },
      .{ .name = "TF_CUDA_DEVICE", .scope = .cuda, .kind = .device, .trim = " ", .forms = "a whole GPU ordinal from 0 to 4294967295, or empty for the default" },
      .{ .name = "TF_CUDA_SEGMENTS", .scope = .cuda, .kind = .segments, .trim = " ", .forms = "a whole number from 1 to 4, or empty for the default" },
      .{ .name = "TF_CUDA_CARVEOUT", .scope = .cuda, .kind = .flag, .forms = "0 or 1" },
 diff --git c/zig/src/platform/environment_test.zig w/zig/src/platform/environment_test.zig
-index e4aabc2..581e2b5 100644
+index e4aabc2..ca4a277 100644
 --- c/zig/src/platform/environment_test.zig
 +++ w/zig/src/platform/environment_test.zig
-@@ -176,6 +176,12 @@ const valid = [_]Case{
+@@ -176,6 +176,13 @@ const valid = [_]Case{
      .{ .name = "TF_SLIDE_POCKET_DUMP", .raw = "/tmp/pocket rows", .n = 0 },
      .{ .name = "TENSORFOLD_CUDA_KERNELS", .raw = "/tmp/captured set", .n = 0 },
      .{ .name = "TF_NCCL_LIB", .raw = "/fixture/nccl/libnccl.so.2", .n = 0 },
 +    .{ .name = "TF_INKLING2_STATE_SUMS", .raw = "/tmp/state sums.jsonl", .n = 0 },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_PLANT", .raw = "20@512", .n = 0 },
++    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_FROM", .raw = "/tmp/decode from", .n = 0 },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_RAW", .raw = "0", .n = 0 },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", .raw = "0", .n = 0 },
 +    .{ .name = "TF_INKLING2_STATE_SUMS_DECODE_PROMPT", .raw = "8", .n = 8 },
