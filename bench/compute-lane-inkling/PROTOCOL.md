@@ -166,10 +166,17 @@ the block's frozen order.
 10. Runner cells (T) have no independent value oracle. They are counted only.
 11. No CPU prompt arrays exist, so initial-prompt and processed-input totals are missing evidence (never zero).
 12. A fresh per-boot SESSION_DIR is used (section 3).
-13. **Void first attempt (2026-11-26, freeze root `8bedc088…`).** The harness counted a lane call as successful only
-    with `exit_code` 0. This engine reports `exit_code` only when it is non-zero (patch 0020), so a clean sandbox
-    exit has `exit_code` null. The first L boot (`c8k-s01-L`) therefore failed its activation gate although its
-    diagnostic call ran and delivered the reference bytes (`55`, matched by the jail). Collection stopped on both
-    Sparks before any L or T dataset request. The rule now accepts `status` ok with `exit_code` null or 0. The
-    harness was re-frozen under a new root and every turn was collected again from the start. The void attempt's
-    rows are kept on each Spark under `~/work/ink-runs/void-8bedc088/` and are not part of any result.
+13. **Two void attempts (2026-11-26).** Each stopped on a harness rule that did not fit this engine. Collection
+    was stopped on both Sparks, the harness was fixed and re-frozen under a new root, and every turn was collected
+    again from the start. The void rows are kept on each Spark under `~/work/ink-runs/void-<root>/` and are not part
+    of any result.
+    - **Root `8bedc088…`:** the harness counted a lane call as successful only with `exit_code` 0. This engine sets
+      `exit_code` only when it is non-zero (patch 0020), so a clean sandbox exit has `exit_code` null. The first L
+      boot (`c8k-s01-L`) failed its activation gate although its diagnostic call delivered the reference bytes
+      (`55`, matched by the jail). No L or T dataset request had been sent. The rule now accepts `status` ok with
+      `exit_code` null or 0.
+    - **Root `3b2ed201…`:** with the runner on, the server always reports the guide it applied, and an empty guide
+      (0 bytes, the sha256 of no bytes) means none was injected (patch 0025, `server/runner_guide.zig`). The
+      harness stopped on the first T dataset reply (`c8k-s01-T`) because the record was present. P and L had
+      qualified 48/48 in s01. The arm gate now stops only on a non-empty guide. Every retained P, L and T row of
+      that attempt passes the corrected gates.

@@ -132,7 +132,11 @@ def arm_violations(arm, row):
             problems.append(arm + ' wrote runner cells')
         if tf.get('runner') not in (None, {}):
             problems.append(arm + ' reply carries a runner receipt')
-    if tf.get('runner_guide') is not None:
+    # With the runner on, the server always reports the guide it applied; "" (0 bytes) means none was injected
+    # (patch 0025, server/runner_guide.zig). Only a non-empty guide is a violation.
+    guide = tf.get('runner_guide')
+    if guide is not None and (not isinstance(guide, dict) or guide.get('bytes') != 0
+                              or guide.get('sha256') != common.EMPTY_SHA256):
         problems.append('reply ran with a runner guide')
     if 'compute_executed' in tf:
         problems.append('compute default is on (runtime.compute_executed present)')

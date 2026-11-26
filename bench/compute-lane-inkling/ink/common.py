@@ -80,6 +80,8 @@ TRUNCATION_MARKER = '[output truncated at 512 tokens]'
 RUNNER_FORMS = ('fence', 'repl', 'inline', 'trace')
 
 
+EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'  # sha256 of no bytes
+
 def canonical(value):
     """The kit's canonical JSON (sorted keys, compact, UTF-8, no NaN)."""
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)

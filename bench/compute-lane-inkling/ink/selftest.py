@@ -103,6 +103,10 @@ def units():
     assert safety.arm_violations('T', {'tensorfold': {'compute_executed': True}})
     assert not safety.arm_violations('T', {'tensorfold': {'runner': {'inline': {'owned': 1}}}})
     assert not safety.arm_violations('P', {'tensorfold': {}})
+    empty_guide = {'bytes': 0, 'sha256': common.EMPTY_SHA256}
+    assert not safety.arm_violations('T', {'tensorfold': {'runner_guide': empty_guide}})
+    assert safety.arm_violations('T', {'tensorfold': {'runner_guide': {'bytes': 512, 'sha256': 'ab' * 32}}})
+    assert safety.arm_violations('T', {'tensorfold': {'runner_guide': {'bytes': 0, 'sha256': 'ab' * 32}}})
     text = 'think print(1) <o>1</o>'
     row = {'tensorfold': {'token_ids': [ord(c) for c in text], 'compute': {'calls': [call]}}}
     detok = lambda ids: ''.join(map(chr, ids))   # noqa: E731

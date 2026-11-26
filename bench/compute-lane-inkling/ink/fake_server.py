@@ -184,6 +184,7 @@ class Model:
                                         'owned': owned if form == 'inline' else 0,
                                         'abstained': 0, 'owned_tokens': 4 * owned if form == 'inline' else 0}
                                  for form in common.RUNNER_FORMS}
+            runtime['runner_guide'] = {'bytes': 0, 'sha256': common.EMPTY_SHA256}  # runner on, no guide
         return pieces, calls, runtime, finish, completion
 
 
