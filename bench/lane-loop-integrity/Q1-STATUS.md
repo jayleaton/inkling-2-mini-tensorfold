@@ -1,6 +1,7 @@
 # Q1 (state integrity): where it stands
 
-Written 2026-11-26 about 19:15Z, when JJ stopped Q1 on this engine. Q1 has **no verdict**. It will be redone on the
+Written 2026-11-26 about 19:15Z, when JJ stopped Q1 on this engine; the queued phases that had finished unattended
+by then were added 2026-11-27 01:30Z from their receipts. Q1 has **no verdict**. It will be redone on the
 new recipe's engine (upstream main + `jayleaton/inkling-2-mini-tensorfold-recipe`); nothing below should be read as
 one. Engine tested: Mia's dc2ca8a1 + patches 0001–0026, image `tensorfold-inkling2:c4-dc2ca8a-runner`
 (dgx-01 `sha256:2a5409bc…`).
@@ -18,8 +19,15 @@ equal the lane reply's".
 | Lane beside a concurrent plain stream (and the peer's own reply) | 30/30 | 30/30 | not run |
 | Client round trip, a round | 102/117 | 93/117 | 96/117 |
 | Cold prefill, a round | 132/147 | 123/147 | 126/147 |
-| No lane: a plain reply prefilled cold from a cut | 0/48 (1 differs in length only) | 0/48 | not tallied |
-| Second lane turn after a container restart | 4/4 | 4/4 | not run |
+| No lane: a plain reply prefilled cold from a cut | 0/48 (1 differs in length only) | 0/48 | 0/48 (6 in length only) |
+
+Other boots, cases × greedy and sampled 0.7: drafter off, X 20/20 warm and 20/20 `"draft": false`, round trip 68/78,
+cold 88/98; drafter off, S 20/20 and 20/20, 64/78, 84/98; DSpark, X (cases 1, 4, 7, 10) 8/8 and 8/8, 31/34, 39/42.
+
+Disk resume (`X-disk`, `S-disk`: cases 2 and 7, greedy and sampled 0.7; the harness waits for the state files, 2–3 a
+conversation, before the restart): every round after the restart reused the NVMe state (602–1,466 cached tokens),
+and a second lane turn on top of a disk-resumed lane turn gave the tokens of a fresh run in 4 of 4 under X and 4 of
+4 under S. Rounds against the lane's tokens: 12 of 14 under each, the 2 misses of the same kind as the round trip's.
 
 State sums (`engine/0001-state-sums.patch`, image `…-runner-lli` `sha256:bbdf9f0d…`), exact kernels, 20 lane replies
 (greedy and sampled 0.7), `q1_sums.py pairs`:
@@ -58,18 +66,19 @@ of all 48 visits, taps and logits, at any window width, under X and S.
    reworked plant (the visit's whole attention conv state, one bit) went red in its author's test at
    (position 305, visit 21); my rerun did not happen.
 3. **Switch-off parity of `-lli2`** against the shipped image, and its end-snapshot comparison under S.
-4. **Disk resume under exact kernels.** After the restart every request reported 0 cached tokens and the session
-   folder held no state files, so nothing was resumed from NVMe there. Under S it did resume (602–906 cached
-   tokens). Cause not found; that boot's engine log was not kept. `X-disk`/`S-disk` reruns were queued.
-5. **Drafter off and DSpark** (`X-off`, `X-dspark`, `S-off`), `S-sums`: queued behind the above on dgx-01; state
-   unknown since SSH was lost at about 16:45Z.
+4. **`S-sums` is collected and not compared** (`q1_sums.py pairs` was never run on it); `S-ref` is invalid like
+   `X-ref`.
+5. **The first disk-resume run under X resumed nothing** (0 cached tokens after the restart, no state files): the
+   harness restarted before the idle engine had written them. The rerun above waits for them. That first run's 4
+   of 4 is therefore not a disk result.
 6. **Token-level planted controls are weak**: changed result token red 28/30 (X) and 29/30 (S), dropped EOS 17/30
-   and 20/30, seed + 1 15/20 and 16/20.
+   and 20/30, seed + 1 15/20 and 16/20; with DSpark, seed + 1 was red in 0 of 4.
 
 ## For the redo
 
 - Prefill is not a bit-exact reference for decode rows on this engine. Either the new engine makes them equal, and
   the frozen G1 applies as written, or the reference has to be a decode-rows replay as in item 1.
 - Receipts are on dgx-01 under `/home/dgx01/work/lli/q1/<phase>/` (`rows.jsonl`, `ids/`, `log`, engine logs,
-  `sums/`); none were copied off before SSH was lost. `X-sums/sums/sums.jsonl` is 823 MiB.
+  `sums/`). Everything but `sums/` and `sessions/` (9 MiB) is also copied off; `X-sums/sums/sums.jsonl` is 823 MiB
+  and stays there. They are not committed.
 - Harness: `boot.sh`, `q1.py`, `q1_all.sh`, `q1_sums.py`, `q1_report.py`, `engine/`.
