@@ -1,0 +1,492 @@
+{"answer": {"value": "ford f150"}, "id": "lgp-test-4x6-27#mc-19", "opaque": "aa4e5dce6fae4bf1", "set": "zebra"}
+{"answer": {"value": 729}, "id": "1-017", "opaque": "3f502faebe50b44c", "set": "arith"}
+{"answer": {"value": null}, "id": "aime2025-II-15", "opaque": "67b76fcf25658764", "set": "aime"}
+{"answer": {"value": "1440"}, "id": "test/number_theory/1002.json", "opaque": "37a680523fd7c138", "set": "math5"}
+{"answer": {"value": null}, "id": "aime2025-II-05", "opaque": "3ce3f177c019e1b2", "set": "aime"}
+{"answer": {"value": "259"}, "id": "aime2025-I-11", "opaque": "fd20eee0e80e0dad", "set": "aime"}
+{"answer": {"value": 395998613}, "id": "1-000", "opaque": "4d6c4cb53c9c2399", "set": "arith"}
+{"answer": {"value": null}, "id": "recZ13cwgDQf9jRd9", "opaque": "641c1429a5d5cf48", "set": "gpqa"}
+{"answer": {"value": 387496691941897018561190}, "id": "1-011", "opaque": "6757900cbaac40ed", "set": "arith"}
+{"answer": {"value": "62"}, "id": "aime2025-I-09", "opaque": "75a1a37bc6592308", "set": "aime"}
+{"answer": {"value": "-2,1"}, "id": "test/intermediate_algebra/1388.json", "opaque": "4eb3c3ea59432cd7", "set": "math5"}
+{"answer": {"reason": null, "value": 499}, "id": "compute-dl-v1-dp-004", "opaque": "5b0e8126cb756671", "set": "computedl"}
+{"answer": {"value": "\\((-\\infty,2)\\cup(3,\\infty)\\)"}, "id": "test/algebra/2043.json", "opaque": "c96ee3e5edbe33c2", "set": "math5"}
+{"answer": {"value": "850"}, "id": "test/intermediate_algebra/582.json", "opaque": "9eb8dc6c8a5701b2", "set": "math5"}
+{"answer": {"reason": null, "value": 499}, "id": "compute-dl-v1-dp-004", "opaque": "aa6ebb004e6621eb", "set": "computedl"}
+{"answer": {"value": "907"}, "id": "aime2025-II-10", "opaque": "7cb9083025b518d4", "set": "aime"}
+{"answer": {"value": "blueberry"}, "id": "lgp-test-6x6-0#mc-8", "opaque": "598cdfa591f9c65a", "set": "zebra"}
+{"answer": {"value": "16"}, "id": "aime2025-I-03", "opaque": "67d57ec516bcac85", "set": "aime"}
+{"answer": {"value": "C"}, "id": "recDytVnNYZe2HuUU", "opaque": "a20c4a7053a85026", "set": "gpqa"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-division-003", "opaque": "7dec78466dd5340c", "set": "computedl"}
+{"answer": {"value": "roses"}, "id": "lgp-test-6x6-19#mc-13", "opaque": "50fa188ef8855b48", "set": "zebra"}
+{"answer": {"value": "6"}, "id": "test/algebra/733.json", "opaque": "1ab09fa253e0b55d", "set": "math5"}
+{"answer": {"value": null}, "id": "recIlghoOw5VbY4Zh", "opaque": "62afc473104b581a", "set": "gpqa"}
+{"answer": {"value": null}, "id": "recnawZPumSCLMVgp", "opaque": "273ed3f26aa6b9b7", "set": "gpqa"}
+{"answer": {"value": "iphone 13"}, "id": "lgp-test-5x6-18#mc-2", "opaque": "09c178789a4eaf1e", "set": "zebra"}
+{"answer": {"value": "610"}, "id": "aime2025-II-08", "opaque": "700ab6bce1a6e653", "set": "aime"}
+{"answer": {"value": "82"}, "id": "aime2025-II-03", "opaque": "8fdb9948f81de925", "set": "aime"}
+{"answer": {"value": "18.90"}, "id": "test/algebra/2780.json", "opaque": "2f62e23f48f7ae6f", "set": "math5"}
+{"answer": {"value": "B"}, "id": "recqGD3fxPCI59vPQ", "opaque": "4a89471fcb7eb60a", "set": "gpqa"}
+{"answer": {"value": "B"}, "id": "recgM7o1tcc7tP778", "opaque": "5b8673dfbf8cb6b4", "set": "gpqa"}
+{"answer": {"value": "2"}, "id": "test/number_theory/1128.json", "opaque": "ee80cad8bb4923a0", "set": "math5"}
+{"answer": {"value": "B"}, "id": "recYOzCsevNz61Lyn", "opaque": "8ec89b10c17d0a31", "set": "gpqa"}
+{"answer": {"value": null}, "id": "aime2025-I-13", "opaque": "64aef62096ac9869", "set": "aime"}
+{"answer": {"value": "Meredith"}, "id": "lgp-test-6x5-37#mc-16", "opaque": "ac91af51c52d8c61", "set": "zebra"}
+{"answer": {"value": 15816}, "id": "1-004", "opaque": "264025080c59147a", "set": "arith"}
+{"answer": {"value": "13/4"}, "id": "test/intermediate_algebra/1806.json", "opaque": "a9d84ead97f3af2e", "set": "math5"}
+{"answer": {"value": "19"}, "id": "aime2025-II-12", "opaque": "ed24cb336ec30617", "set": "aime"}
+{"answer": {"value": "A"}, "id": "recXvQ6gWAmyakrpD", "opaque": "be4a4901b6aafb0c", "set": "gpqa"}
+{"answer": {"value": "117"}, "id": "aime2025-I-04", "opaque": "6003c291e2ea2b83", "set": "aime"}
+{"answer": {"value": "\\((-\\infty,2)\\cup(3,\\infty)\\)"}, "id": "test/algebra/2043.json", "opaque": "3c2a8746aeab37bc", "set": "math5"}
+{"answer": {"value": "hamster"}, "id": "lgp-test-6x6-34#mc-9", "opaque": "3687499de689da28", "set": "zebra"}
+{"answer": {"value": "\\(\\frac{13}{4}\\)"}, "id": "test/intermediate_algebra/1806.json", "opaque": "dd60ba8143596c5a", "set": "math5"}
+{"answer": {"value": "D"}, "id": "rec4L69T0Y1AS4AFS", "opaque": "e78f34dfc44fbf66", "set": "gpqa"}
+{"answer": {"value": null}, "id": "1-002", "opaque": "e7a9b4b435b26fa0", "set": "arith"}
+{"answer": {"value": "821"}, "id": "aime2025-I-07", "opaque": "95780f11e70533e4", "set": "aime"}
+{"answer": {"value": 111}, "id": "1-008", "opaque": "f22b84480eae1fa0", "set": "arith"}
+{"answer": {"value": "62"}, "id": "aime2025-I-09", "opaque": "f78f9ec32ec35ea4", "set": "aime"}
+{"answer": {"value": "\\(6-5i\\)"}, "id": "test/precalculus/990.json", "opaque": "4a71a98ae743370b", "set": "math5"}
+{"answer": {"value": "Meredith"}, "id": "lgp-test-4x5-39#mc-14", "opaque": "dd2ed3f48e810e65", "set": "zebra"}
+{"answer": {"value": "associate"}, "id": "lgp-test-6x4-17#mc-7", "opaque": "5bd750a3efbdd720", "set": "zebra"}
+{"answer": {"value": "0"}, "id": "test/intermediate_algebra/1510.json", "opaque": "c47827ec449718c7", "set": "math5"}
+{"answer": {"value": "160 m"}, "id": "test/geometry/702.json", "opaque": "7b23b53fc5e5e9a6", "set": "math5"}
+{"answer": {"value": "C"}, "id": "rec8nshandHARTkrg", "opaque": "75b66a60ffd46626", "set": "gpqa"}
+{"answer": {"value": "hip hop"}, "id": "lgp-test-5x4-6#mc-13", "opaque": "26ef5ae59ea4203d", "set": "zebra"}
+{"answer": {"value": "soccer"}, "id": "lgp-test-6x5-24#mc-8", "opaque": "de6870b5318b185c", "set": "zebra"}
+{"answer": {"value": 26958144508413291535578}, "id": "1-006", "opaque": "98ef9a0e95aa194a", "set": "arith"}
+{"answer": {"value": null}, "id": "recIlghoOw5VbY4Zh", "opaque": "9deeed3b159a1187", "set": "gpqa"}
+{"answer": {"reason": null, "value": 917472487804705781395}, "id": "compute-dl-v1-modular-002", "opaque": "5b8dec00dbfcf1e6", "set": "computedl"}
+{"answer": {"value": 594}, "id": "1-002", "opaque": "54657cf6afe013ea", "set": "arith"}
+{"answer": {"value": "504"}, "id": "aime2025-I-06", "opaque": "6db3e93191120840", "set": "aime"}
+{"answer": {"value": "610"}, "id": "aime2025-II-08", "opaque": "9c7627c1faabe64d", "set": "aime"}
+{"answer": {"value": null}, "id": "rec1oj2DveQWl9Rpw", "opaque": "8739cddaff2c098d", "set": "gpqa"}
+{"answer": {"value": "850"}, "id": "test/intermediate_algebra/582.json", "opaque": "3a5765d6d406996e", "set": "math5"}
+{"answer": {"value": "160 m"}, "id": "test/geometry/702.json", "opaque": "af39fa05317acdb1", "set": "math5"}
+{"answer": {"value": "\\(\\{-2,\\,1-\\sqrt5,\\,1+\\sqrt5\\}\\)"}, "id": "test/intermediate_algebra/2015.json", "opaque": "dac32472a0cb7f75", "set": "math5"}
+{"answer": {"value": "149"}, "id": "aime2025-II-09", "opaque": "0fa8d9fa6b145ee1", "set": "aime"}
+{"answer": {"value": "roses"}, "id": "lgp-test-4x6-19#mc-19", "opaque": "dd23cdb487bffa80", "set": "zebra"}
+{"answer": {"value": null}, "id": "aime2025-I-15", "opaque": "88a5476157d8616c", "set": "aime"}
+{"answer": {"value": "A"}, "id": "recXvQ6gWAmyakrpD", "opaque": "a38a21516c9dd359", "set": "gpqa"}
+{"answer": {"value": "roses"}, "id": "lgp-test-6x6-19#mc-13", "opaque": "6a747e18238ad6ec", "set": "zebra"}
+{"answer": {"value": "A"}, "id": "recTs7qzfJs6kfLUK", "opaque": "3bf22b1b236e6d95", "set": "gpqa"}
+{"answer": {"reason": null, "value": 43868540261457409}, "id": "compute-dl-v1-modular-001", "opaque": "075d4a987a3b553b", "set": "computedl"}
+{"answer": {"value": "-3-2√2, -3+2√2, 3-2√2, 3+2√2"}, "id": "test/precalculus/768.json", "opaque": "0cc2fff028769f6b", "set": "math5"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-3#mc-3", "opaque": "b9ac76a8a17108d1", "set": "zebra"}
+{"answer": {"value": "259"}, "id": "aime2025-I-11", "opaque": "4f03357ae4ca9f64", "set": "aime"}
+{"answer": {"value": "27"}, "id": "test/precalculus/1202.json", "opaque": "068e610ec2ddf986", "set": "math5"}
+{"answer": {"value": "beach"}, "id": "lgp-test-5x6-14#mc-3", "opaque": "e05e1baa3255eb53", "set": "zebra"}
+{"answer": {"reason": null, "value": 60143796273226919209}, "id": "compute-dl-v1-modular-004", "opaque": "b0ca9d54fd69b24c", "set": "computedl"}
+{"answer": {"value": "18.90"}, "id": "test/algebra/2780.json", "opaque": "fa22a6056fe1459e", "set": "math5"}
+{"answer": {"reason": null, "value": 541}, "id": "compute-dl-v1-dp-001", "opaque": "3b249268ac20210f", "set": "computedl"}
+{"answer": {"value": "roses"}, "id": "lgp-test-5x4-36#mc-19", "opaque": "4b77679de06c421c", "set": "zebra"}
+{"answer": {"value": null}, "id": "lgp-test-4x5-9#mc-1", "opaque": "10023bd768cc5359", "set": "zebra"}
+{"answer": {"reason": null, "value": 488}, "id": "compute-dl-v1-dp-002", "opaque": "5200465019c18708", "set": "computedl"}
+{"answer": {"value": "1440"}, "id": "test/number_theory/1002.json", "opaque": "188ba24c53a4cd2d", "set": "math5"}
+{"answer": {"reason": null, "value": 117393424016837649362823525347749493355365475121710157778935681}, "id": "compute-dl-v1-integer-003", "opaque": "aa237e2b0dd2c522", "set": "computedl"}
+{"answer": {"value": "C"}, "id": "rec4JrWy7Il8ho5vk", "opaque": "3d704651d250a881", "set": "gpqa"}
+{"answer": {"value": 191}, "id": "1-018", "opaque": "d368bd14b6659cda", "set": "arith"}
+{"answer": {"value": "A"}, "id": "recXvQ6gWAmyakrpD", "opaque": "b8b46693973aefd7", "set": "gpqa"}
+{"answer": {"value": null}, "id": "aime2025-I-14", "opaque": "24bc78522ce16e8d", "set": "aime"}
+{"answer": {"reason": null, "value": 412}, "id": "compute-dl-v1-dp-003", "opaque": "36660959fc183f5b", "set": "computedl"}
+{"answer": {"value": 39550428178413622120944}, "id": "1-001", "opaque": "aaea9033c724ce9a", "set": "arith"}
+{"answer": {"value": "13/18"}, "id": "test/counting_and_probability/51.json", "opaque": "cfb10d85597b3364", "set": "math5"}
+{"answer": {"value": "81"}, "id": "aime2025-I-10", "opaque": "105cf4e0c8716db1", "set": "aime"}
+{"answer": {"value": "C"}, "id": "rec6sE2CRtD4drtHg", "opaque": "608061703a03af92", "set": "gpqa"}
+{"answer": {"value": "\\(\\frac72\\)"}, "id": "test/geometry/561.json", "opaque": "d7bc1d07c669943d", "set": "math5"}
+{"answer": {"value": "A"}, "id": "recIDiDKKrN61Auyr", "opaque": "bf9bcecd0dd7ab5d", "set": "gpqa"}
+{"answer": {"value": "roses"}, "id": "lgp-test-5x4-36#mc-19", "opaque": "79b59b623074dce3", "set": "zebra"}
+{"answer": {"value": "iphone 13"}, "id": "lgp-test-5x6-18#mc-2", "opaque": "5c362600f7223c47", "set": "zebra"}
+{"answer": {"value": "Bob"}, "id": "lgp-test-5x5-33#mc-10", "opaque": "dd09c4fcb40ea9c0", "set": "zebra"}
+{"answer": {"value": "Bob"}, "id": "lgp-test-5x5-33#mc-10", "opaque": "72e1187782efe7cf", "set": "zebra"}
+{"answer": {"value": null}, "id": "1-005", "opaque": "e8d49ab15132c2eb", "set": "arith"}
+{"answer": {"value": 111}, "id": "1-008", "opaque": "9d64eb508ac14f08", "set": "arith"}
+{"answer": {"value": "22 euros"}, "id": "test/prealgebra/2066.json", "opaque": "3b7f2f37884c7be6", "set": "math5"}
+{"answer": {"value": 138}, "id": "1-013", "opaque": "2a4247744881b762", "set": "arith"}
+{"answer": {"value": "14"}, "id": "test/intermediate_algebra/1350.json", "opaque": "5a359f7a29930c20", "set": "math5"}
+{"answer": {"value": "swimming"}, "id": "lgp-test-5x6-25#mc-10", "opaque": "84dd3267528bce51", "set": "zebra"}
+{"answer": {"value": "painting"}, "id": "lgp-test-4x5-23#mc-12", "opaque": "6bf1a666c26f15d0", "set": "zebra"}
+{"answer": {"value": "\\(1+2i\\)"}, "id": "test/algebra/2264.json", "opaque": "300b723b03c913fd", "set": "math5"}
+{"answer": {"reason": null, "value": 82}, "id": "compute-dl-v1-graph-003", "opaque": "de261f1df7dac7fb", "set": "computedl"}
+{"answer": {"value": "104"}, "id": "aime2025-II-14", "opaque": "3be16317b775f0f0", "set": "aime"}
+{"answer": {"value": "D"}, "id": "receYQxnUBvxPcvbQ", "opaque": "4eb9b6955edbffce", "set": "gpqa"}
+{"answer": {"reason": null, "value": 3573960371543915635912}, "id": "compute-dl-v1-modular-003", "opaque": "bbca79e05fdafe0a", "set": "computedl"}
+{"answer": {"value": "\\(1+2i\\)"}, "id": "test/algebra/2264.json", "opaque": "9469a71c78c9f89d", "set": "math5"}
+{"answer": {"value": "104"}, "id": "aime2025-II-14", "opaque": "a1c96126a9f55454", "set": "aime"}
+{"answer": {"reason": null, "value": 63}, "id": "compute-dl-v1-graph-002", "opaque": "f2eac2cc0b23d694", "set": "computedl"}
+{"answer": {"value": "588"}, "id": "aime2025-I-02", "opaque": "099253d325b7a13b", "set": "aime"}
+{"answer": {"value": "victorian"}, "id": "lgp-test-5x4-20#mc-5", "opaque": "6182d891b048373b", "set": "zebra"}
+{"answer": {"reason": null, "value": {"A": 32526, "B": 31109, "C": 59629, "D": 72804, "E": -24893, "F": 15143}}, "id": "compute-dl-v1-aggregation-001", "opaque": "852909895fa289be", "set": "computedl"}
+{"answer": {"value": "1440"}, "id": "test/number_theory/1002.json", "opaque": "a5baa9002d7d4369", "set": "math5"}
+{"answer": {"reason": null, "value": 723908348982823109242239674630385621503564362754632933675449}, "id": "compute-dl-v1-integer-002", "opaque": "ef453e3978f58f73", "set": "computedl"}
+{"answer": {"value": "13/4"}, "id": "test/intermediate_algebra/1806.json", "opaque": "033034a2228de08c", "set": "math5"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-11#mc-16", "opaque": "a087c8996a7bf726", "set": "zebra"}
+{"answer": {"value": "2"}, "id": "test/number_theory/1128.json", "opaque": "53377094e6ec4fba", "set": "math5"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-3#mc-3", "opaque": "c96612acd2c4247e", "set": "zebra"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-37#mc-27", "opaque": "734ec55dc649d419", "set": "zebra"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-integer-002", "opaque": "d8cc8e365e518c2f", "set": "computedl"}
+{"answer": {"value": "D"}, "id": "rec0VuKUjt1SZ7NYv", "opaque": "0c646d6611fccc30", "set": "gpqa"}
+{"answer": {"value": null}, "id": "1-000", "opaque": "cdafd573e4e1ed4b", "set": "arith"}
+{"answer": {"value": "1.25"}, "id": "test/prealgebra/1558.json", "opaque": "b3e5c707834d17b3", "set": "math5"}
+{"answer": {"value": "chevrolet silverado"}, "id": "lgp-test-6x6-11#mc-16", "opaque": "2e483f4f206b6681", "set": "zebra"}
+{"answer": {"value": "C"}, "id": "rec6sE2CRtD4drtHg", "opaque": "78a002870f3f0bd6", "set": "gpqa"}
+{"answer": {"value": "B"}, "id": "recUBgVlkKzcRPDdK", "opaque": "9c44f4367dd266e0", "set": "gpqa"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-37#mc-27", "opaque": "448c6af037d256e9", "set": "zebra"}
+{"answer": {"value": "113"}, "id": "aime2025-II-11", "opaque": "1eea0cab29312a6e", "set": "aime"}
+{"answer": {"value": "504"}, "id": "aime2025-I-06", "opaque": "6cfa2a7bfac0f178", "set": "aime"}
+{"answer": {"value": "B"}, "id": "recMicVBcqy1xM1jq", "opaque": "e77ab2ad03d1ccef", "set": "gpqa"}
+{"answer": {"value": "C"}, "id": "rec8nshandHARTkrg", "opaque": "3310cd19ad4eaf9b", "set": "gpqa"}
+{"answer": {"value": "A"}, "id": "recIDiDKKrN61Auyr", "opaque": "d6e54c94ffdb1ca1", "set": "gpqa"}
+{"answer": {"value": 102461601}, "id": "1-015", "opaque": "2251062363506e2d", "set": "arith"}
+{"answer": {"value": "D"}, "id": "recZdZxsN0AxDx0pB", "opaque": "dae5e090f9d2258b", "set": "gpqa"}
+{"answer": {"value": "6"}, "id": "test/algebra/733.json", "opaque": "1ffe62649aec9de3", "set": "math5"}
+{"answer": {"value": "B"}, "id": "recgM7o1tcc7tP778", "opaque": "a844664c1cecf63a", "set": "gpqa"}
+{"answer": {"value": "113"}, "id": "aime2025-II-11", "opaque": "03b318f52397f220", "set": "aime"}
+{"answer": {"value": "swimming"}, "id": "lgp-test-5x6-25#mc-10", "opaque": "4ec9f15b5538d797", "set": "zebra"}
+{"answer": {"reason": null, "value": 488}, "id": "compute-dl-v1-dp-002", "opaque": "a22d4bdd3bb0de22", "set": "computedl"}
+{"answer": {"value": "-3-2√2, 2√2-3, 3-2√2, 3+2√2"}, "id": "test/precalculus/768.json", "opaque": "cf5790c94844a9a1", "set": "math5"}
+{"answer": {"value": "248"}, "id": "aime2025-II-13", "opaque": "611582eded0d5649", "set": "aime"}
+{"answer": {"value": "1.25"}, "id": "test/prealgebra/1558.json", "opaque": "0c82a449ba82a7f1", "set": "math5"}
+{"answer": {"value": "Meredith"}, "id": "lgp-test-6x5-37#mc-16", "opaque": "dc2fa10e4c058c76", "set": "zebra"}
+{"answer": {"value": "hamster"}, "id": "lgp-test-6x6-34#mc-9", "opaque": "127ffdc5e4d41e56", "set": "zebra"}
+{"answer": {"value": null}, "id": "recnawZPumSCLMVgp", "opaque": "41f3629b1a3b0909", "set": "gpqa"}
+{"answer": {"reason": null, "value": 3573960371543915635912}, "id": "compute-dl-v1-modular-003", "opaque": "7ae6074de8e6acca", "set": "computedl"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-11#mc-16", "opaque": "22caaafe48c822e3", "set": "zebra"}
+{"answer": {"value": "roses"}, "id": "lgp-test-5x4-36#mc-19", "opaque": "acdc8ff1d46cbed5", "set": "zebra"}
+{"answer": {"value": "8"}, "id": "test/prealgebra/1251.json", "opaque": "47b26673509d8635", "set": "math5"}
+{"answer": {"value": "B"}, "id": "recyrk6XBVwugG5u8", "opaque": "d3ca4f1bff6fa071", "set": "gpqa"}
+{"answer": {"value": 378}, "id": "1-012", "opaque": "6e51536951ad476a", "set": "arith"}
+{"answer": {"value": "6 - 5i"}, "id": "test/precalculus/990.json", "opaque": "ae885a1e7066f5c7", "set": "math5"}
+{"answer": {"value": 90182317708123470619566}, "id": "1-016", "opaque": "e90401b7e03af9a3", "set": "arith"}
+{"answer": {"value": "6 - 5i"}, "id": "test/precalculus/990.json", "opaque": "54595b1c8f99fbb9", "set": "math5"}
+{"answer": {"reason": null, "value": 26330233616501324786500517034565512921929482556668267826}, "id": "compute-dl-v1-integer-001", "opaque": "c05e5e013fa1cae1", "set": "computedl"}
+{"answer": {"value": "A"}, "id": "recoy9ZLBsc7HIRBy", "opaque": "6582c2b4a26198e3", "set": "gpqa"}
+{"answer": {"value": "81"}, "id": "aime2025-I-10", "opaque": "0ba4c470f16284fc", "set": "aime"}
+{"answer": {"value": "C"}, "id": "recnawZPumSCLMVgp", "opaque": "8731f581df804997", "set": "gpqa"}
+{"answer": {"value": "Bob"}, "id": "lgp-test-5x5-14#mc-5", "opaque": "d05a571199d4f3ce", "set": "zebra"}
+{"answer": {"value": "D"}, "id": "rec0VuKUjt1SZ7NYv", "opaque": "41b47649e270780b", "set": "gpqa"}
+{"answer": {"value": "237"}, "id": "aime2025-II-07", "opaque": "9387b36fffecc5c5", "set": "aime"}
+{"answer": {"value": 124}, "id": "1-003", "opaque": "c36943bb92f4f58c", "set": "arith"}
+{"answer": {"reason": null, "value": 46}, "id": "compute-dl-v1-graph-001", "opaque": "0db2ee1edbab2996", "set": "computedl"}
+{"answer": {"value": "28"}, "id": "test/geometry/965.json", "opaque": "64656e250c82ea40", "set": "math5"}
+{"answer": {"value": "Meredith"}, "id": "lgp-test-4x5-39#mc-14", "opaque": "133b64d471178941", "set": "zebra"}
+{"answer": {"value": "Peter"}, "id": "lgp-test-6x5-9#mc-20", "opaque": "02edde11f54ce8af", "set": "zebra"}
+{"answer": {"value": "16"}, "id": "aime2025-I-03", "opaque": "a9e85f77d31827fd", "set": "aime"}
+{"answer": {"value": null}, "id": "recgM7o1tcc7tP778", "opaque": "2d4df7168abcafeb", "set": "gpqa"}
+{"answer": {"value": 24937}, "id": "1-014", "opaque": "c2435f90f735382f", "set": "arith"}
+{"answer": {"value": "\\(\\frac{11}{2}\\)"}, "id": "test/algebra/1031.json", "opaque": "0cf2e7dc48faaa5f", "set": "math5"}
+{"answer": {"value": "82"}, "id": "aime2025-II-03", "opaque": "0a39799b1b57de95", "set": "aime"}
+{"answer": {"value": "B"}, "id": "recqGD3fxPCI59vPQ", "opaque": "97ec8c1b9961af31", "set": "gpqa"}
+{"answer": {"value": "Meredith"}, "id": "lgp-test-6x5-37#mc-16", "opaque": "6f2029cc6a1fbd93", "set": "zebra"}
+{"answer": {"value": "27"}, "id": "test/precalculus/1202.json", "opaque": "91a580cc04bf35fa", "set": "math5"}
+{"answer": {"value": "117"}, "id": "aime2025-I-04", "opaque": "9c73c426485ed3e8", "set": "aime"}
+{"answer": {"value": "C"}, "id": "rec4JrWy7Il8ho5vk", "opaque": "4b0c4f091afab587", "set": "gpqa"}
+{"answer": {"value": "A"}, "id": "recTs7qzfJs6kfLUK", "opaque": "0afe95133c63102d", "set": "gpqa"}
+{"answer": {"reason": null, "value": 26330233616501324786500517034565512921929482556668267826}, "id": "compute-dl-v1-integer-001", "opaque": "97de5f45645f111b", "set": "computedl"}
+{"answer": {"value": 738}, "id": "1-007", "opaque": "20027f8db658c53e", "set": "arith"}
+{"answer": {"value": null}, "id": "recOkA2zsy4GSMD9R", "opaque": "d6092a2c86b2f4bc", "set": "gpqa"}
+{"answer": {"value": "Meredith"}, "id": "lgp-test-4x5-39#mc-14", "opaque": "5473527c31cf557f", "set": "zebra"}
+{"answer": {"value": "2"}, "id": "test/number_theory/1128.json", "opaque": "7720f4d160cefbfc", "set": "math5"}
+{"answer": {"value": "C"}, "id": "recGFKDUd8qgz81Zl", "opaque": "990bf04f524cdbd2", "set": "gpqa"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-division-001", "opaque": "81aaa335cbf27d01", "set": "computedl"}
+{"answer": {"value": "113"}, "id": "aime2025-II-11", "opaque": "985fe8266d03d840", "set": "aime"}
+{"answer": {"value": null}, "id": "aime2025-I-14", "opaque": "eff92af3bef03db7", "set": "aime"}
+{"answer": {"value": "D"}, "id": "recPzW1WqRnPs57D6", "opaque": "fe2bbcbe06cb5be4", "set": "gpqa"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-division-002", "opaque": "89ae26cf8d48e30c", "set": "computedl"}
+{"answer": {"value": 39550428178413622120944}, "id": "1-001", "opaque": "ff0e1b509e93d2a6", "set": "arith"}
+{"answer": {"value": "610"}, "id": "aime2025-II-08", "opaque": "11391fb7c2597651", "set": "aime"}
+{"answer": {"value": null}, "id": "lgp-test-6x5-33#mc-18", "opaque": "9584ef545b7c6d5e", "set": "zebra"}
+{"answer": {"value": "49"}, "id": "aime2025-II-02", "opaque": "af9dba34b6d64db9", "set": "aime"}
+{"answer": {"reason": null, "value": 541}, "id": "compute-dl-v1-dp-001", "opaque": "c50c64759cfec3f4", "set": "computedl"}
+{"answer": {"value": "149"}, "id": "aime2025-II-09", "opaque": "79f9f26c2ec2976d", "set": "aime"}
+{"answer": {"value": "907"}, "id": "aime2025-II-10", "opaque": "5d7450904613f71e", "set": "aime"}
+{"answer": {"value": null}, "id": "rec1oj2DveQWl9Rpw", "opaque": "fb29a1db4ebc0fd5", "set": "gpqa"}
+{"answer": {"value": 869439542}, "id": "1-005", "opaque": "8c7b102659c93ad4", "set": "arith"}
+{"answer": {"reason": null, "value": 80}, "id": "compute-dl-v1-graph-004", "opaque": "f56879fa4fc27053", "set": "computedl"}
+{"answer": {"value": 90182317708123470619566}, "id": "1-016", "opaque": "49e7d6fa440faad6", "set": "arith"}
+{"answer": {"value": "0"}, "id": "test/intermediate_algebra/1510.json", "opaque": "d9b31f5fc7b89f77", "set": "math5"}
+{"answer": {"reason": null, "value": [331021811137403795051019822901345866369977317890443, 39088632719173942974105960436]}, "id": "compute-dl-v1-division-002", "opaque": "53c08bb857ccb076", "set": "computedl"}
+{"answer": {"value": 191}, "id": "1-018", "opaque": "156da74d0e136ab9", "set": "arith"}
+{"answer": {"value": "70"}, "id": "aime2025-I-01", "opaque": "64d6b732f5e42a9b", "set": "aime"}
+{"answer": {"value": "B"}, "id": "recUBgVlkKzcRPDdK", "opaque": "875f1b0869726453", "set": "gpqa"}
+{"answer": {"value": "C"}, "id": "rec4JrWy7Il8ho5vk", "opaque": "7b751f8d00dd1407", "set": "gpqa"}
+{"answer": {"value": null}, "id": "rec1oj2DveQWl9Rpw", "opaque": "9699f0c6bbd72c92", "set": "gpqa"}
+{"answer": {"value": 26958144508413291535578}, "id": "1-006", "opaque": "cf0386a7edb99e32", "set": "arith"}
+{"answer": {"value": "red"}, "id": "lgp-test-4x5-3#mc-3", "opaque": "96cf54e84a3168e5", "set": "zebra"}
+{"answer": {"reason": null, "value": [1404179393979394862693067401219264362487658742472744, 29647786969286695738741761446]}, "id": "compute-dl-v1-division-004", "opaque": "928df4836019d16b", "set": "computedl"}
+{"answer": {"value": "468"}, "id": "aime2025-II-01", "opaque": "558412aaf17683cd", "set": "aime"}
+{"answer": {"value": "D"}, "id": "recPzW1WqRnPs57D6", "opaque": "10c1489c37c1b76e", "set": "gpqa"}
+{"answer": {"value": "510"}, "id": "aime2025-I-12", "opaque": "4a7f2e9903757ac7", "set": "aime"}
+{"answer": {"value": "588"}, "id": "aime2025-I-02", "opaque": "53f774bf5a015784", "set": "aime"}
+{"answer": {"value": "painting"}, "id": "lgp-test-4x5-23#mc-12", "opaque": "bbc4be432eaebc9e", "set": "zebra"}
+{"answer": {"reason": null, "value": {"A": -6339, "B": 49086, "C": 75220, "D": 49347, "E": 71965, "F": 29316}}, "id": "compute-dl-v1-aggregation-002", "opaque": "6da86df7454747b2", "set": "computedl"}
+{"answer": {"value": "D"}, "id": "rec0VuKUjt1SZ7NYv", "opaque": "4c1fad36dd3766cd", "set": "gpqa"}
+{"answer": {"value": "16"}, "id": "aime2025-I-03", "opaque": "00208d1fea5b3150", "set": "aime"}
+{"answer": {"value": "baseball"}, "id": "lgp-test-6x4-13#mc-5", "opaque": "344ce164db75c5a2", "set": "zebra"}
+{"answer": {"value": "18+2π units"}, "id": "test/geometry/686.json", "opaque": "11c8c9f649334c74", "set": "math5"}
+{"answer": {"reason": null, "value": 46}, "id": "compute-dl-v1-graph-001", "opaque": "e5087fb15c480f35", "set": "computedl"}
+{"answer": {"value": "106"}, "id": "aime2025-II-04", "opaque": "680a569607a19c7b", "set": "aime"}
+{"answer": {"value": "13/18"}, "id": "test/counting_and_probability/51.json", "opaque": "e6bf4c540c3ecb24", "set": "math5"}
+{"answer": {"value": "588"}, "id": "aime2025-I-02", "opaque": "d95d01867b16d91c", "set": "aime"}
+{"answer": {"value": null}, "id": "aime2025-I-13", "opaque": "b0d7c10cef186cc3", "set": "aime"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-modular-002", "opaque": "2c55bcdbf2f00074", "set": "computedl"}
+{"answer": {"value": "77"}, "id": "aime2025-I-08", "opaque": "1d7839ea2e717204", "set": "aime"}
+{"answer": {"value": "(3,4]"}, "id": "test/intermediate_algebra/558.json", "opaque": "d0c6c83df5b1af12", "set": "math5"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-integer-004", "opaque": "1c1b4ef14ae194b8", "set": "computedl"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-division-004", "opaque": "a13e536f3dceca93", "set": "computedl"}
+{"answer": {"value": "279"}, "id": "aime2025-I-05", "opaque": "4d141814d1f3bd4f", "set": "aime"}
+{"answer": {"value": 387496691941897018561190}, "id": "1-011", "opaque": "a4808cf8c76b86e2", "set": "arith"}
+{"answer": {"value": "0"}, "id": "test/intermediate_algebra/1510.json", "opaque": "5f18eae2516464fb", "set": "math5"}
+{"answer": {"value": null}, "id": "aime2025-I-15", "opaque": "e8c6badd5445a63e", "set": "aime"}
+{"answer": {"value": "hamster"}, "id": "lgp-test-6x6-34#mc-9", "opaque": "9de594f63a503183", "set": "zebra"}
+{"answer": {"value": 20433}, "id": "1-019", "opaque": "399aab281dc331c8", "set": "arith"}
+{"answer": {"value": "D"}, "id": "recPzW1WqRnPs57D6", "opaque": "5e685279384b31e1", "set": "gpqa"}
+{"answer": {"value": "49"}, "id": "aime2025-II-02", "opaque": "6de7d6beff7293cb", "set": "aime"}
+{"answer": {"value": "279"}, "id": "aime2025-I-05", "opaque": "ef435a7254ef0173", "set": "aime"}
+{"answer": {"value": 378}, "id": "1-012", "opaque": "aa9d7ca0608624f7", "set": "arith"}
+{"answer": {"value": "A"}, "id": "recIDiDKKrN61Auyr", "opaque": "436828892dd5df5c", "set": "gpqa"}
+{"answer": {"value": "painting"}, "id": "lgp-test-4x5-23#mc-12", "opaque": "64f76718569117a0", "set": "zebra"}
+{"answer": {"value": "106"}, "id": "aime2025-II-04", "opaque": "b56a4d317bd14850", "set": "aime"}
+{"answer": {"value": "6"}, "id": "test/algebra/733.json", "opaque": "0664d832cba94f74", "set": "math5"}
+{"answer": {"value": "Bella"}, "id": "lgp-test-5x5-23#mc-17", "opaque": "e9f8b19c8d755e6e", "set": "zebra"}
+{"answer": {"value": null}, "id": "1-015", "opaque": "22766f29521c5b21", "set": "arith"}
+{"answer": {"value": null}, "id": "lgp-test-6x5-33#mc-18", "opaque": "0a6589faa96874e9", "set": "zebra"}
+{"answer": {"reason": null, "value": {"A": -6339, "B": 49086, "C": 75220, "D": 49347, "E": 71965, "F": 29316}}, "id": "compute-dl-v1-aggregation-002", "opaque": "160577b5328e7431", "set": "computedl"}
+{"answer": {"value": "A"}, "id": "recTs7qzfJs6kfLUK", "opaque": "00bc03bd86d47107", "set": "gpqa"}
+{"answer": {"value": "14"}, "id": "test/intermediate_algebra/1350.json", "opaque": "a6e8bcd630449ffa", "set": "math5"}
+{"answer": {"value": "77"}, "id": "aime2025-I-08", "opaque": "9cc84869166db940", "set": "aime"}
+{"answer": {"value": 869439542}, "id": "1-005", "opaque": "0df5f265b12fa00e", "set": "arith"}
+{"answer": {"value": "blueberry"}, "id": "lgp-test-6x6-0#mc-8", "opaque": "a72cbd3d8efc961f", "set": "zebra"}
+{"answer": {"value": null}, "id": "aime2025-II-15", "opaque": "d4e1ab9cac39585a", "set": "aime"}
+{"answer": {"reason": null, "value": 412}, "id": "compute-dl-v1-dp-003", "opaque": "dd5b865099676a8d", "set": "computedl"}
+{"answer": {"reason": null, "value": [2524721526707160965417976632732768787284536545300452, 29328733244684372567258518125]}, "id": "compute-dl-v1-division-001", "opaque": "367c93413766981e", "set": "computedl"}
+{"answer": {"value": "Peter"}, "id": "lgp-test-6x5-9#mc-20", "opaque": "d652aa46419b7660", "set": "zebra"}
+{"answer": {"value": "white"}, "id": "lgp-test-4x6-23#mc-16", "opaque": "25e54edd1e50b519", "set": "zebra"}
+{"answer": {"value": "A"}, "id": "rec5eA17Qr1ucNLUf", "opaque": "a89777fe8ee211f4", "set": "gpqa"}
+{"answer": {"reason": null, "value": 82}, "id": "compute-dl-v1-graph-003", "opaque": "a9f0c07a0f87ad0b", "set": "computedl"}
+{"answer": {"value": "Alice"}, "id": "lgp-test-5x4-38#mc-4", "opaque": "158c91f7bad27e40", "set": "zebra"}
+{"answer": {"value": "(2, ∞)"}, "id": "test/intermediate_algebra/183.json", "opaque": "d2c4a94477627bff", "set": "math5"}
+{"answer": {"value": "ford f150"}, "id": "lgp-test-4x6-27#mc-19", "opaque": "da7dc4e6beefb15e", "set": "zebra"}
+{"answer": {"value": null}, "id": "1-019", "opaque": "05332c8a9a7403f2", "set": "arith"}
+{"answer": {"reason": null, "value": 26330233616501324786500517034565512921929482556668267826}, "id": "compute-dl-v1-integer-001", "opaque": "f180bbee4f4280e1", "set": "computedl"}
+{"answer": {"value": "C"}, "id": "rec6sE2CRtD4drtHg", "opaque": "6708e5302386d3a2", "set": "gpqa"}
+{"answer": {"reason": null, "value": 82}, "id": "compute-dl-v1-graph-003", "opaque": "91f8d71ca81f552d", "set": "computedl"}
+{"answer": {"value": "117"}, "id": "aime2025-I-04", "opaque": "13cbae08b8b9e179", "set": "aime"}
+{"answer": {"value": "roses"}, "id": "lgp-test-4x6-19#mc-19", "opaque": "4745a5ec00b50d6f", "set": "zebra"}
+{"answer": {"value": 124}, "id": "1-003", "opaque": "dcc85a5432f6e566", "set": "arith"}
+{"answer": {"reason": null, "value": 80}, "id": "compute-dl-v1-graph-004", "opaque": "1dfbc6b505bac57e", "set": "computedl"}
+{"answer": {"value": null}, "id": "recYOzCsevNz61Lyn", "opaque": "83ea24aef1682b9d", "set": "gpqa"}
+{"answer": {"reason": null, "value": {"A": 17675, "B": 60756, "C": 56654, "D": 40513, "E": 4401, "F": 4679}}, "id": "compute-dl-v1-aggregation-004", "opaque": "688f7e3df9a2b82c", "set": "computedl"}
+{"answer": {"value": "27"}, "id": "test/precalculus/1202.json", "opaque": "c28fe8f5797a31c2", "set": "math5"}
+{"answer": {"value": null}, "id": "1-012", "opaque": "7870ee467275f8e9", "set": "arith"}
+{"answer": {"value": "(2,∞)"}, "id": "test/intermediate_algebra/183.json", "opaque": "61725f35e6f5d90d", "set": "math5"}
+{"answer": {"reason": null, "value": 43868540261457409}, "id": "compute-dl-v1-modular-001", "opaque": "ad6f4aed55842a70", "set": "computedl"}
+{"answer": {"reason": null, "value": [331021811137403795051019822901345866369977317890443, 39088632719173942974105960436]}, "id": "compute-dl-v1-division-002", "opaque": "4f08a17e02fcd1c4", "set": "computedl"}
+{"answer": {"value": 20433}, "id": "1-019", "opaque": "53c7cfae13b76ca4", "set": "arith"}
+{"answer": {"value": null}, "id": "1-009", "opaque": "41a9b16771486bf8", "set": "arith"}
+{"answer": {"value": "soccer"}, "id": "lgp-test-6x5-24#mc-8", "opaque": "f4e9e09b55d061e9", "set": "zebra"}
+{"answer": {"value": "Peter"}, "id": "lgp-test-6x5-9#mc-20", "opaque": "64fe2afa4606ecc5", "set": "zebra"}
+{"answer": {"value": 300235914}, "id": "1-010", "opaque": "60be12f7a7797179", "set": "arith"}
+{"answer": {"value": "\\(70\\sqrt2\\)"}, "id": "test/intermediate_algebra/1454.json", "opaque": "372ba5d4e07e7c5c", "set": "math5"}
+{"answer": {"value": null}, "id": "recGFKDUd8qgz81Zl", "opaque": "ed0c30acf62b74b8", "set": "gpqa"}
+{"answer": {"value": "160 m"}, "id": "test/geometry/702.json", "opaque": "53c48d557d897331", "set": "math5"}
+{"answer": {"value": "Bella"}, "id": "lgp-test-5x5-23#mc-17", "opaque": "c4666309ee6627fd", "set": "zebra"}
+{"answer": {"value": "11/2"}, "id": "test/algebra/1031.json", "opaque": "1be36370bcdb3ea2", "set": "math5"}
+{"answer": {"value": 102461601}, "id": "1-015", "opaque": "d45d2e49cda8f74e", "set": "arith"}
+{"answer": {"value": "1+2i"}, "id": "test/algebra/2264.json", "opaque": "9782af5943d63306", "set": "math5"}
+{"answer": {"value": "swimming"}, "id": "lgp-test-4x5-38#mc-16", "opaque": "9ed5f357aae02792", "set": "zebra"}
+{"answer": {"value": null}, "id": "aime2025-II-13", "opaque": "d1796b255b50a0bb", "set": "aime"}
+{"answer": {"value": "B"}, "id": "recMicVBcqy1xM1jq", "opaque": "84782b99e01d178d", "set": "gpqa"}
+{"answer": {"value": null}, "id": "recZ13cwgDQf9jRd9", "opaque": "e9eefc9c9d2e6f40", "set": "gpqa"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-modular-001", "opaque": "ec12333e0b921f87", "set": "computedl"}
+{"answer": {"value": null}, "id": "1-017", "opaque": "bfe641580f69e4a5", "set": "arith"}
+{"answer": {"value": 26958144508413291535578}, "id": "1-006", "opaque": "e614c06a75bc73c9", "set": "arith"}
+{"answer": {"value": "9"}, "id": "test/prealgebra/1297.json", "opaque": "df40801061d426d7", "set": "math5"}
+{"answer": {"value": "A"}, "id": "reck1zKeCssmN82Ga", "opaque": "89882e17fe4e1a67", "set": "gpqa"}
+{"answer": {"value": null}, "id": "1-010", "opaque": "b5e186c884e5840c", "set": "arith"}
+{"answer": {"value": "-3-2√2, -3+2√2, 3-2√2, 3+2√2"}, "id": "test/precalculus/768.json", "opaque": "df56cfd166ee1f21", "set": "math5"}
+{"answer": {"value": "D"}, "id": "recOkA2zsy4GSMD9R", "opaque": "2347ae28d5f8edb6", "set": "gpqa"}
+{"answer": {"value": "blueberry"}, "id": "lgp-test-6x6-0#mc-8", "opaque": "d87b2aa30efb1c15", "set": "zebra"}
+{"answer": {"value": null}, "id": "1-007", "opaque": "efd4cbe84779c35f", "set": "arith"}
+{"answer": {"value": "70\\sqrt{2}"}, "id": "test/intermediate_algebra/1454.json", "opaque": "af6f6a0841decf93", "set": "math5"}
+{"answer": {"value": "(2, ∞)"}, "id": "test/intermediate_algebra/183.json", "opaque": "d7c4050ad693512e", "set": "math5"}
+{"answer": {"reason": null, "value": 80}, "id": "compute-dl-v1-graph-004", "opaque": "d4fdb8490b1e15a3", "set": "computedl"}
+{"answer": {"value": "3 < λ ≤ 4"}, "id": "test/intermediate_algebra/558.json", "opaque": "51644fa56f5619a6", "set": "math5"}
+{"answer": {"value": "swimming"}, "id": "lgp-test-5x6-25#mc-10", "opaque": "e7ee8d930ea96844", "set": "zebra"}
+{"answer": {"value": "7/2"}, "id": "test/geometry/561.json", "opaque": "694d7bd9a89faf24", "set": "math5"}
+{"answer": {"value": "18.90"}, "id": "test/algebra/2780.json", "opaque": "07f4d2bab86e780b", "set": "math5"}
+{"answer": {"value": "293"}, "id": "aime2025-II-06", "opaque": "d10f865aabf39c2c", "set": "aime"}
+{"answer": {"reason": null, "value": {"A": 32526, "B": 31109, "C": 59629, "D": 72804, "E": -24893, "F": 15143}}, "id": "compute-dl-v1-aggregation-001", "opaque": "e73e0fcf580cc44d", "set": "computedl"}
+{"answer": {"value": "B"}, "id": "recyrk6XBVwugG5u8", "opaque": "17c20b184d64db3a", "set": "gpqa"}
+{"answer": {"value": "A"}, "id": "recYt8xx80OTyDsL0", "opaque": "b3b4c791e18a7d15", "set": "gpqa"}
+{"answer": {"value": "white"}, "id": "lgp-test-4x6-23#mc-16", "opaque": "85a4c26f5de5c6c9", "set": "zebra"}
+{"answer": {"value": 124}, "id": "1-003", "opaque": "ba8451867e6921cf", "set": "arith"}
+{"answer": {"value": null}, "id": "lgp-test-4x5-9#mc-1", "opaque": "11c35d1af0f667f2", "set": "zebra"}
+{"answer": {"value": 729}, "id": "1-017", "opaque": "b3ee86c05652d335", "set": "arith"}
+{"answer": {"value": "82"}, "id": "aime2025-II-03", "opaque": "459897beb74d5c89", "set": "aime"}
+{"answer": {"value": "22"}, "id": "test/prealgebra/2066.json", "opaque": "40728c9cd8b58270", "set": "math5"}
+{"answer": {"value": 395998613}, "id": "1-000", "opaque": "9e32420be0d3a40e", "set": "arith"}
+{"answer": {"reason": null, "value": 60143796273226919209}, "id": "compute-dl-v1-modular-004", "opaque": "e82e983a241effce", "set": "computedl"}
+{"answer": {"value": "A"}, "id": "recYt8xx80OTyDsL0", "opaque": "f3fae0d7a10e9787", "set": "gpqa"}
+{"answer": {"value": "11/2"}, "id": "test/algebra/1031.json", "opaque": "1dad6bf41875b338", "set": "math5"}
+{"answer": {"value": "D"}, "id": "receYQxnUBvxPcvbQ", "opaque": "3759aabdb98b9e63", "set": "gpqa"}
+{"answer": {"value": "D"}, "id": "recOkA2zsy4GSMD9R", "opaque": "88f31daa60916412", "set": "gpqa"}
+{"answer": {"reason": null, "value": 541}, "id": "compute-dl-v1-dp-001", "opaque": "f56a254768f1bdfa", "set": "computedl"}
+{"answer": {"value": "821"}, "id": "aime2025-I-07", "opaque": "90dc2ec2d17c2277", "set": "aime"}
+{"answer": {"value": null}, "id": "recGFKDUd8qgz81Zl", "opaque": "73f583aad4cb793b", "set": "gpqa"}
+{"answer": {"value": "14"}, "id": "test/intermediate_algebra/1350.json", "opaque": "7efa4f7ab167b492", "set": "math5"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-modular-003", "opaque": "f34a95ced55e941d", "set": "computedl"}
+{"answer": {"value": 138}, "id": "1-013", "opaque": "e6681d2ae2554b77", "set": "arith"}
+{"answer": {"value": "swimming"}, "id": "lgp-test-4x5-38#mc-16", "opaque": "8f45406e335978fb", "set": "zebra"}
+{"answer": {"value": null}, "id": "aime2025-I-13", "opaque": "d655f39e5c86941f", "set": "aime"}
+{"answer": {"value": "D"}, "id": "recrs0kUo7Ua1xhKO", "opaque": "41936626b110a50b", "set": "gpqa"}
+{"answer": {"value": "victorian"}, "id": "lgp-test-5x4-20#mc-5", "opaque": "aaba703957898509", "set": "zebra"}
+{"answer": {"value": "70"}, "id": "aime2025-I-01", "opaque": "d391d2244f28f581", "set": "aime"}
+{"answer": {"value": null}, "id": "1-014", "opaque": "aa042143e6a1f4fa", "set": "arith"}
+{"answer": {"value": "70"}, "id": "aime2025-I-01", "opaque": "b0cedd6bed34f271", "set": "aime"}
+{"answer": {"value": 90182317708123470619566}, "id": "1-016", "opaque": "a665a9b41c23cf26", "set": "arith"}
+{"answer": {"reason": null, "value": [3988300114346422936083957360444192746700749871699159, 5614337142597595782234436043]}, "id": "compute-dl-v1-division-003", "opaque": "c3d8eeab8cab0ac8", "set": "computedl"}
+{"answer": {"value": null}, "id": "1-004", "opaque": "94354f21f578d71b", "set": "arith"}
+{"answer": {"value": "B"}, "id": "recqGD3fxPCI59vPQ", "opaque": "0ec43d9876450c28", "set": "gpqa"}
+{"answer": {"value": "D"}, "id": "receYQxnUBvxPcvbQ", "opaque": "450620c7f5955f6f", "set": "gpqa"}
+{"answer": {"value": "259"}, "id": "aime2025-I-11", "opaque": "ffe37c07f99a9c55", "set": "aime"}
+{"answer": {"reason": null, "value": 63}, "id": "compute-dl-v1-graph-002", "opaque": "7f4f9e3f68c4b85a", "set": "computedl"}
+{"answer": {"reason": null, "value": {"A": 61761, "B": 3371, "C": -5174, "D": 50596, "E": 117953, "F": 52054}}, "id": "compute-dl-v1-aggregation-003", "opaque": "dfb76aa6e7a24a95", "set": "computedl"}
+{"answer": {"value": "A"}, "id": "recoy9ZLBsc7HIRBy", "opaque": "d9533e855d0b6d8b", "set": "gpqa"}
+{"answer": {"value": 111}, "id": "1-008", "opaque": "b83b8bcf4e49111a", "set": "arith"}
+{"answer": {"value": null}, "id": "lgp-test-5x6-14#mc-3", "opaque": "a8d757d02a0c2126", "set": "zebra"}
+{"answer": {"value": "red"}, "id": "lgp-test-4x5-3#mc-3", "opaque": "65450a515831bdfb", "set": "zebra"}
+{"answer": {"value": "A"}, "id": "reczQ4I0VpENdMtIj", "opaque": "a7fb0200b578dc4f", "set": "gpqa"}
+{"answer": {"value": "907"}, "id": "aime2025-II-10", "opaque": "629d5570e59f595b", "set": "aime"}
+{"answer": {"reason": null, "value": 63}, "id": "compute-dl-v1-graph-002", "opaque": "902148115de57f52", "set": "computedl"}
+{"answer": {"value": "roses"}, "id": "lgp-test-4x6-19#mc-19", "opaque": "a72db14e2cf0e9bc", "set": "zebra"}
+{"answer": {"value": "106"}, "id": "aime2025-II-04", "opaque": "876fa811629a3a3a", "set": "aime"}
+{"answer": {"value": "D"}, "id": "recrs0kUo7Ua1xhKO", "opaque": "642fceb565318430", "set": "gpqa"}
+{"answer": {"value": 15816}, "id": "1-004", "opaque": "eabc7b840724ee68", "set": "arith"}
+{"answer": {"value": "A"}, "id": "reck1zKeCssmN82Ga", "opaque": "1ec793a8aec1af44", "set": "gpqa"}
+{"answer": {"value": "149"}, "id": "aime2025-II-09", "opaque": "414d7ceecc339c30", "set": "aime"}
+{"answer": {"value": 14969}, "id": "1-009", "opaque": "4528ea109eb62080", "set": "arith"}
+{"answer": {"value": "victorian"}, "id": "lgp-test-5x4-20#mc-5", "opaque": "4a1d32f1daf4da54", "set": "zebra"}
+{"answer": {"value": null}, "id": "aime2025-I-14", "opaque": "326651e22f74ebd5", "set": "aime"}
+{"answer": {"value": "62"}, "id": "aime2025-I-09", "opaque": "2bcc5391c317c548", "set": "aime"}
+{"answer": {"value": "B"}, "id": "recYOzCsevNz61Lyn", "opaque": "c3291902a73f7092", "set": "gpqa"}
+{"answer": {"value": "\\(\\frac72\\)"}, "id": "test/geometry/561.json", "opaque": "fa03c025190e8890", "set": "math5"}
+{"answer": {"value": "Bob"}, "id": "lgp-test-5x5-14#mc-5", "opaque": "c056dfae0fc19371", "set": "zebra"}
+{"answer": {"value": "\\(18+2\\pi\\) units"}, "id": "test/geometry/686.json", "opaque": "7cc9a1e519fbe514", "set": "math5"}
+{"answer": {"reason": null, "value": {"A": 17675, "B": 60756, "C": 56654, "D": 40513, "E": 4401, "F": 4679}}, "id": "compute-dl-v1-aggregation-004", "opaque": "0449407e4937582f", "set": "computedl"}
+{"answer": {"reason": null, "value": 488}, "id": "compute-dl-v1-dp-002", "opaque": "cfdc844f55488a3a", "set": "computedl"}
+{"answer": {"reason": null, "value": [2524721526707160965417976632732768787284536545300452, 29328733244684372567258518125]}, "id": "compute-dl-v1-division-001", "opaque": "cc4a5722acb8cfc0", "set": "computedl"}
+{"answer": {"value": "504"}, "id": "aime2025-I-06", "opaque": "d0508f8fdf7c5292", "set": "aime"}
+{"answer": {"value": "D"}, "id": "recZdZxsN0AxDx0pB", "opaque": "35253b16709dbcb3", "set": "gpqa"}
+{"answer": {"value": "soccer"}, "id": "lgp-test-6x5-24#mc-8", "opaque": "96d59eb5070ed271", "set": "zebra"}
+{"answer": {"value": "240"}, "id": "aime2025-II-15", "opaque": "9abbab3eaeb6a700", "set": "aime"}
+{"answer": {"value": "-2,1"}, "id": "test/intermediate_algebra/1388.json", "opaque": "e303c22a3a599d52", "set": "math5"}
+{"answer": {"value": "10"}, "id": "test/intermediate_algebra/279.json", "opaque": "6af3f4199154d147", "set": "math5"}
+{"answer": {"value": "468"}, "id": "aime2025-II-01", "opaque": "a1c3797bfba05c07", "set": "aime"}
+{"answer": {"value": "ford f150"}, "id": "lgp-test-4x6-27#mc-19", "opaque": "afb7591fab48df8c", "set": "zebra"}
+{"answer": {"value": "22"}, "id": "test/prealgebra/2066.json", "opaque": "2e5605cf78c07529", "set": "math5"}
+{"answer": {"value": "510"}, "id": "aime2025-I-12", "opaque": "04d7298284f18b17", "set": "aime"}
+{"answer": {"value": "A"}, "id": "reczQ4I0VpENdMtIj", "opaque": "94f4ea212daa671c", "set": "gpqa"}
+{"answer": {"reason": null, "value": 81174233303193465685768972902439441343710453004050665243232636}, "id": "compute-dl-v1-integer-004", "opaque": "eb970fd82681c858", "set": "computedl"}
+{"answer": {"reason": null, "value": [3988300114346422936083957360444192746700749871699159, 5614337142597595782234436043]}, "id": "compute-dl-v1-division-003", "opaque": "79931602706693e7", "set": "computedl"}
+{"answer": {"value": "279"}, "id": "aime2025-I-05", "opaque": "8108ce5a6c4740e5", "set": "aime"}
+{"answer": {"value": "Bella"}, "id": "lgp-test-5x5-23#mc-17", "opaque": "9e8a183bd1b71c82", "set": "zebra"}
+{"answer": {"value": "C"}, "id": "recIlghoOw5VbY4Zh", "opaque": "cfe4834250bed414", "set": "gpqa"}
+{"answer": {"value": "Bob"}, "id": "lgp-test-5x5-14#mc-5", "opaque": "0bca208f970a2377", "set": "zebra"}
+{"answer": {"value": "237"}, "id": "aime2025-II-07", "opaque": "9f88b7d53da8a890", "set": "aime"}
+{"answer": {"value": 191}, "id": "1-018", "opaque": "664855ab804c3d29", "set": "arith"}
+{"answer": {"value": "B"}, "id": "recyrk6XBVwugG5u8", "opaque": "05d566c18cbac691", "set": "gpqa"}
+{"answer": {"reason": null, "value": 117393424016837649362823525347749493355365475121710157778935681}, "id": "compute-dl-v1-integer-003", "opaque": "620f29048d0a0942", "set": "computedl"}
+{"answer": {"value": "\\((-\\infty,2)\\cup(3,\\infty)\\)"}, "id": "test/algebra/2043.json", "opaque": "18081a6ab330e1af", "set": "math5"}
+{"answer": {"value": "9"}, "id": "test/prealgebra/1297.json", "opaque": "9e4870204f82bd84", "set": "math5"}
+{"answer": {"value": "19"}, "id": "aime2025-II-12", "opaque": "b0afbfbdc7873c10", "set": "aime"}
+{"answer": {"reason": null, "value": 412}, "id": "compute-dl-v1-dp-003", "opaque": "470a64db8acac370", "set": "computedl"}
+{"answer": {"value": "D"}, "id": "rec4L69T0Y1AS4AFS", "opaque": "5245b1c6cb389370", "set": "gpqa"}
+{"answer": {"value": "C"}, "id": "rec8nshandHARTkrg", "opaque": "ec97240703335bcd", "set": "gpqa"}
+{"answer": {"value": "D"}, "id": "recZdZxsN0AxDx0pB", "opaque": "4fd92f9fe6ac99fb", "set": "gpqa"}
+{"answer": {"value": "A"}, "id": "rec5eA17Qr1ucNLUf", "opaque": "17ff8d663ba244dd", "set": "gpqa"}
+{"answer": {"value": "Bob"}, "id": "lgp-test-5x5-33#mc-10", "opaque": "30734875e3826834", "set": "zebra"}
+{"answer": {"value": "{-2, 1+\\sqrt{5}, 1-\\sqrt{5}}"}, "id": "test/intermediate_algebra/2015.json", "opaque": "7de9425c73a381fa", "set": "math5"}
+{"answer": {"value": "28"}, "id": "test/geometry/965.json", "opaque": "9a7210a3c3808672", "set": "math5"}
+{"answer": {"value": "D"}, "id": "recrs0kUo7Ua1xhKO", "opaque": "04354044a3fec80c", "set": "gpqa"}
+{"answer": {"value": "iphone 13"}, "id": "lgp-test-5x6-18#mc-2", "opaque": "9dd4a67567c65016", "set": "zebra"}
+{"answer": {"value": "336"}, "id": "aime2025-II-05", "opaque": "fe683e6cac746686", "set": "aime"}
+{"answer": {"value": "77"}, "id": "aime2025-I-08", "opaque": "eb9e2a6bcfe67b09", "set": "aime"}
+{"answer": {"value": "10"}, "id": "test/intermediate_algebra/279.json", "opaque": "b8cbf14d1c84b330", "set": "math5"}
+{"answer": {"value": "Sarah"}, "id": "lgp-test-6x6-37#mc-27", "opaque": "275ec5771214cc1b", "set": "zebra"}
+{"answer": {"value": "A"}, "id": "recoy9ZLBsc7HIRBy", "opaque": "a95d60260eceb034", "set": "gpqa"}
+{"answer": {"value": "associate"}, "id": "lgp-test-6x4-17#mc-7", "opaque": "ca6afc23931c324d", "set": "zebra"}
+{"answer": {"reason": null, "value": {"A": 17675, "B": 60756, "C": 56654, "D": 40513, "E": 4401, "F": 4679}}, "id": "compute-dl-v1-aggregation-004", "opaque": "c154069c89ed5faa", "set": "computedl"}
+{"answer": {"value": "81"}, "id": "aime2025-I-10", "opaque": "7001d2bd20350ec3", "set": "aime"}
+{"answer": {"value": "roses"}, "id": "lgp-test-6x6-19#mc-13", "opaque": "f7770760b11a3f29", "set": "zebra"}
+{"answer": {"value": "821"}, "id": "aime2025-I-07", "opaque": "39d870d01bef1eec", "set": "aime"}
+{"answer": {"value": "13/18"}, "id": "test/counting_and_probability/51.json", "opaque": "73832eafa77e831e", "set": "math5"}
+{"answer": {"value": "C"}, "id": "recDytVnNYZe2HuUU", "opaque": "160822d25e675b29", "set": "gpqa"}
+{"answer": {"value": "Alice"}, "id": "lgp-test-5x4-38#mc-4", "opaque": "eedc3d3d580b7409", "set": "zebra"}
+{"answer": {"value": "C"}, "id": "recDytVnNYZe2HuUU", "opaque": "eb0e1b8ef8bf68c5", "set": "gpqa"}
+{"answer": {"value": "bird"}, "id": "lgp-test-4x5-9#mc-1", "opaque": "2384551702229510", "set": "zebra"}
+{"answer": {"reason": null, "value": {"A": 32526, "B": 31109, "C": 59629, "D": 72804, "E": -24893, "F": 15143}}, "id": "compute-dl-v1-aggregation-001", "opaque": "c5f9e1a08a00cbd4", "set": "computedl"}
+{"answer": {"value": 594}, "id": "1-002", "opaque": "db99f89c0bbd9444", "set": "arith"}
+{"answer": {"value": "volleyball"}, "id": "lgp-test-6x5-33#mc-18", "opaque": "eab5d47dcdf6a5f0", "set": "zebra"}
+{"answer": {"value": 300235914}, "id": "1-010", "opaque": "12939982424ed6c9", "set": "arith"}
+{"answer": {"reason": null, "value": {"A": 61761, "B": 3371, "C": -5174, "D": 50596, "E": 117953, "F": 52054}}, "id": "compute-dl-v1-aggregation-003", "opaque": "3cd05cf0086ccdd6", "set": "computedl"}
+{"answer": {"reason": null, "value": 723908348982823109242239674630385621503564362754632933675449}, "id": "compute-dl-v1-integer-002", "opaque": "e1d52759189484ab", "set": "computedl"}
+{"answer": {"value": "8"}, "id": "test/prealgebra/1251.json", "opaque": "9cb7eae985624f9d", "set": "math5"}
+{"answer": {"value": "8"}, "id": "test/prealgebra/1251.json", "opaque": "e2fa6f013b35af34", "set": "math5"}
+{"answer": {"value": "510"}, "id": "aime2025-I-12", "opaque": "2706ad7f79323074", "set": "aime"}
+{"answer": {"value": 24937}, "id": "1-014", "opaque": "fcfa8dc8cc7f5a69", "set": "arith"}
+{"answer": {"value": "9"}, "id": "test/prealgebra/1297.json", "opaque": "e7aeefa6e63d2e5f", "set": "math5"}
+{"answer": {"reason": null, "value": {"A": 61761, "B": 3371, "C": -5174, "D": 50596, "E": 117953, "F": 52054}}, "id": "compute-dl-v1-aggregation-003", "opaque": "16d986e24198f390", "set": "computedl"}
+{"answer": {"value": null}, "id": "aime2025-II-05", "opaque": "d308a73729683386", "set": "aime"}
+{"answer": {"value": "hip hop"}, "id": "lgp-test-5x4-6#mc-13", "opaque": "72fc948731bc4531", "set": "zebra"}
+{"answer": {"value": "beach"}, "id": "lgp-test-5x6-14#mc-3", "opaque": "2a49d012fb57358f", "set": "zebra"}
+{"answer": {"reason": null, "value": 499}, "id": "compute-dl-v1-dp-004", "opaque": "ed100a0d59f7a178", "set": "computedl"}
+{"answer": {"value": "baseball"}, "id": "lgp-test-6x4-13#mc-5", "opaque": "d8a8af2183fb29dd", "set": "zebra"}
+{"answer": {"value": 387496691941897018561190}, "id": "1-011", "opaque": "57e5a195cda9c95f", "set": "arith"}
+{"answer": {"value": "Alice"}, "id": "lgp-test-5x4-38#mc-4", "opaque": "9b142882450f92b8", "set": "zebra"}
+{"answer": {"value": 738}, "id": "1-007", "opaque": "479f4b28e1e41245", "set": "arith"}
+{"answer": {"value": "70\\sqrt{2}"}, "id": "test/intermediate_algebra/1454.json", "opaque": "499a12f5a9d105e7", "set": "math5"}
+{"answer": {"value": "28"}, "id": "test/geometry/965.json", "opaque": "01cc23a8b67317be", "set": "math5"}
+{"answer": {"value": "A"}, "id": "rec5eA17Qr1ucNLUf", "opaque": "5137028b5b2f6da7", "set": "gpqa"}
+{"answer": {"value": null}, "id": "recZ13cwgDQf9jRd9", "opaque": "df159662751822f2", "set": "gpqa"}
+{"answer": {"reason": null, "value": [1404179393979394862693067401219264362487658742472744, 29647786969286695738741761446]}, "id": "compute-dl-v1-division-004", "opaque": "2cfba5841cf78c37", "set": "computedl"}
+{"answer": {"value": "C"}, "id": "reczQ4I0VpENdMtIj", "opaque": "da7e5773a7117883", "set": "gpqa"}
+{"answer": {"reason": null, "value": 81174233303193465685768972902439441343710453004050665243232636}, "id": "compute-dl-v1-integer-004", "opaque": "dfbfa14bd2a1870e", "set": "computedl"}
+{"answer": {"value": "swimming"}, "id": "lgp-test-4x5-38#mc-16", "opaque": "73a782c15f4135d9", "set": "zebra"}
+{"answer": {"value": null}, "id": "aime2025-II-13", "opaque": "eedfb300469a4859", "set": "aime"}
+{"answer": {"value": "associate"}, "id": "lgp-test-6x4-17#mc-7", "opaque": "0c77392110fef188", "set": "zebra"}
+{"answer": {"value": "red"}, "id": "lgp-test-4x5-3#mc-3", "opaque": "7c62b0bf98286d70", "set": "zebra"}
+{"answer": {"value": "12π inches per second"}, "id": "test/prealgebra/1423.json", "opaque": "038490c986832cc9", "set": "math5"}
+{"answer": {"value": "baseball"}, "id": "lgp-test-6x4-13#mc-5", "opaque": "8715a1d36cdb5f78", "set": "zebra"}
+{"answer": {"value": "19"}, "id": "aime2025-II-12", "opaque": "5aa6fe862158cbc0", "set": "aime"}
+{"answer": {"value": "104"}, "id": "aime2025-II-14", "opaque": "1ec30fe8a5664f2e", "set": "aime"}
+{"answer": {"value": "B"}, "id": "recMicVBcqy1xM1jq", "opaque": "ed8d1de0b8e66f7d", "set": "gpqa"}
+{"answer": {"value": 138}, "id": "1-013", "opaque": "1e4b4c37e5dea2ce", "set": "arith"}
+{"answer": {"value": "293"}, "id": "aime2025-II-06", "opaque": "ab308a8a09ea38cc", "set": "aime"}
+{"answer": {"value": "237"}, "id": "aime2025-II-07", "opaque": "a9238bf32497f9d1", "set": "aime"}
+{"answer": {"value": "735"}, "id": "aime2025-I-15", "opaque": "474d25fea5b589cc", "set": "aime"}
+{"answer": {"value": "49"}, "id": "aime2025-II-02", "opaque": "56bc202c2e318b03", "set": "aime"}
+{"answer": {"reason": null, "value": 117393424016837649362823525347749493355365475121710157778935681}, "id": "compute-dl-v1-integer-003", "opaque": "ecfc4eec821944e2", "set": "computedl"}
+{"answer": {"reason": null, "value": 46}, "id": "compute-dl-v1-graph-001", "opaque": "774f66db134e7b04", "set": "computedl"}
+{"answer": {"value": "293"}, "id": "aime2025-II-06", "opaque": "48277332c60d4e7e", "set": "aime"}
+{"answer": {"value": "3<λ≤4"}, "id": "test/intermediate_algebra/558.json", "opaque": "0be09a66416bb43c", "set": "math5"}
+{"answer": {"value": "\\(12\\pi\\) inches per second"}, "id": "test/prealgebra/1423.json", "opaque": "395219eadbe241ee", "set": "math5"}
+{"answer": {"value": "10"}, "id": "test/intermediate_algebra/279.json", "opaque": "67d4f4530dd06a03", "set": "math5"}
+{"answer": {"value": "A"}, "id": "reck1zKeCssmN82Ga", "opaque": "f3771c8e5e9e641b", "set": "gpqa"}
+{"answer": {"reason": null, "value": 917472487804705781395}, "id": "compute-dl-v1-modular-002", "opaque": "c1266cb2d92935ad", "set": "computedl"}
+{"answer": {"value": "hip hop"}, "id": "lgp-test-5x4-6#mc-13", "opaque": "bf667a2151d7ac22", "set": "zebra"}
+{"answer": {"value": "B"}, "id": "recUBgVlkKzcRPDdK", "opaque": "a1fd451dbd316cf1", "set": "gpqa"}
+{"answer": {"value": 39550428178413622120944}, "id": "1-001", "opaque": "a1ec2a4ee429fcd8", "set": "arith"}
+{"answer": {"value": null}, "id": "lgp-test-6x6-3#mc-3", "opaque": "5b6938d1dbf12d3c", "set": "zebra"}
+{"answer": {"value": "-2,1"}, "id": "test/intermediate_algebra/1388.json", "opaque": "b3983317ade21495", "set": "math5"}
+{"answer": {"value": "1.25"}, "id": "test/prealgebra/1558.json", "opaque": "71ee1f94d85c41ca", "set": "math5"}
+{"answer": {"value": "A"}, "id": "recYt8xx80OTyDsL0", "opaque": "92ed15b096125ef9", "set": "gpqa"}
+{"answer": {"value": "850"}, "id": "test/intermediate_algebra/582.json", "opaque": "f0e326bc5e654971", "set": "math5"}
+{"answer": {"reason": null, "value": {"A": -6339, "B": 49086, "C": 75220, "D": 49347, "E": 71965, "F": 29316}}, "id": "compute-dl-v1-aggregation-002", "opaque": "e79e500ec5795902", "set": "computedl"}
+{"answer": {"value": "white"}, "id": "lgp-test-4x6-23#mc-16", "opaque": "4a57224267cf9a65", "set": "zebra"}
+{"answer": {"reason": "missing_final_content", "value": null}, "id": "compute-dl-v1-modular-004", "opaque": "03b34e14805ee029", "set": "computedl"}
+{"answer": {"value": "468"}, "id": "aime2025-II-01", "opaque": "19cbb5f714c41379", "set": "aime"}
+{"answer": {"value": "\\(\\{-2,\\,1-\\sqrt5,\\,1+\\sqrt5\\}\\)"}, "id": "test/intermediate_algebra/2015.json", "opaque": "57c2e8c1574c9dbf", "set": "math5"}
+{"answer": {"value": "D"}, "id": "rec4L69T0Y1AS4AFS", "opaque": "1eded228deee9e90", "set": "gpqa"}
+{"answer": {"value": 14969}, "id": "1-009", "opaque": "9c9264686be48419", "set": "arith"}
+{"answer": {"value": "18+2π units"}, "id": "test/geometry/686.json", "opaque": "97bd5048b345f909", "set": "math5"}
+{"answer": {"value": "\\(12\\pi\\) inches per second"}, "id": "test/prealgebra/1423.json", "opaque": "ae058a66dcf3c0f4", "set": "math5"}

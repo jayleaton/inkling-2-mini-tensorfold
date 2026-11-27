@@ -7,6 +7,7 @@
 Review verdicts are DIR/review-<name>.jsonl rows {"opaque", "correct"}: two reviewers, a third where they split.
 """
 import argparse
+import gzip
 import hashlib
 import json
 import os
@@ -37,7 +38,7 @@ SEED = 20261126
 def read(paths):
     rows = {}
     for path in paths.split(","):
-        for line in open(path, encoding="utf-8"):
+        for line in (gzip.open if path.endswith(".gz") else open)(path, "rt", encoding="utf-8"):
             r = json.loads(line)
             if not r.get("error"):
                 rows[(r["set"], r["id"], r["arm"])] = r
@@ -78,8 +79,8 @@ def judge(name, answer, q):
     if name == "arith":
         return ("correct" if str(value) == str(gold) else "incorrect"), "exact"
     if name == "aime":
-        m = re.fullmatch(r"\\?(?:boxed\{)?\s*(-?\d+)\s*\}?\.?", value)
-        return ("correct" if m and int(m.group(1)) == int(gold) else "incorrect"), "integer"
+        m = re.fullmatch(r"\\?(?:boxed\{)?\s*(-?\d+)\s*\}?(?:\^\{?\\circ\}?|°)?\.?", value)
+        return ("correct" if m and int(m.group(1)) == int(re.search(r"-?\d+", gold).group()) else "incorrect"), "integer"
     if name == "gpqa":
         m = re.match(r"\(?([A-D])\b", value)
         return ("correct" if m and m.group(1) == gold else "incorrect"), "letter"

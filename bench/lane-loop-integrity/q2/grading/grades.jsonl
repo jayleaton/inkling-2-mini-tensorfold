@@ -1,0 +1,492 @@
+{"grade": "correct", "how": "string", "opaque": "aa4e5dce6fae4bf1"}
+{"grade": "correct", "how": "exact", "opaque": "3f502faebe50b44c"}
+{"grade": "incorrect", "how": "no answer", "opaque": "67b76fcf25658764"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "37a680523fd7c138"}
+{"grade": "incorrect", "how": "no answer", "opaque": "3ce3f177c019e1b2"}
+{"grade": "correct", "how": "integer", "opaque": "fd20eee0e80e0dad"}
+{"grade": "correct", "how": "exact", "opaque": "4d6c4cb53c9c2399"}
+{"grade": "incorrect", "how": "no answer", "opaque": "641c1429a5d5cf48"}
+{"grade": "correct", "how": "exact", "opaque": "6757900cbaac40ed"}
+{"grade": "correct", "how": "integer", "opaque": "75a1a37bc6592308"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "4eb3c3ea59432cd7"}
+{"grade": "correct", "how": "exact", "opaque": "5b0e8126cb756671"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "c96ee3e5edbe33c2"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "9eb8dc6c8a5701b2"}
+{"grade": "correct", "how": "exact", "opaque": "aa6ebb004e6621eb"}
+{"grade": "correct", "how": "integer", "opaque": "7cb9083025b518d4"}
+{"grade": "correct", "how": "string", "opaque": "598cdfa591f9c65a"}
+{"grade": "correct", "how": "integer", "opaque": "67d57ec516bcac85"}
+{"grade": "correct", "how": "letter", "opaque": "a20c4a7053a85026"}
+{"grade": "incorrect", "how": "no answer", "opaque": "7dec78466dd5340c"}
+{"grade": "correct", "how": "string", "opaque": "50fa188ef8855b48"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "1ab09fa253e0b55d"}
+{"grade": "incorrect", "how": "no answer", "opaque": "62afc473104b581a"}
+{"grade": "incorrect", "how": "no answer", "opaque": "273ed3f26aa6b9b7"}
+{"grade": "correct", "how": "string", "opaque": "09c178789a4eaf1e"}
+{"grade": "correct", "how": "integer", "opaque": "700ab6bce1a6e653"}
+{"grade": "correct", "how": "integer", "opaque": "8fdb9948f81de925"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "2f62e23f48f7ae6f"}
+{"grade": "correct", "how": "letter", "opaque": "4a89471fcb7eb60a"}
+{"grade": "correct", "how": "letter", "opaque": "5b8673dfbf8cb6b4"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "ee80cad8bb4923a0"}
+{"grade": "correct", "how": "letter", "opaque": "8ec89b10c17d0a31"}
+{"grade": "incorrect", "how": "no answer", "opaque": "64aef62096ac9869"}
+{"grade": "correct", "how": "string", "opaque": "ac91af51c52d8c61"}
+{"grade": "correct", "how": "exact", "opaque": "264025080c59147a"}
+{"grade": "correct", "how": "exact_rational", "opaque": "a9d84ead97f3af2e"}
+{"grade": "correct", "how": "integer", "opaque": "ed24cb336ec30617"}
+{"grade": "correct", "how": "letter", "opaque": "be4a4901b6aafb0c"}
+{"grade": "correct", "how": "integer", "opaque": "6003c291e2ea2b83"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "3c2a8746aeab37bc"}
+{"grade": "correct", "how": "string", "opaque": "3687499de689da28"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "dd60ba8143596c5a"}
+{"grade": "correct", "how": "letter", "opaque": "e78f34dfc44fbf66"}
+{"grade": "incorrect", "how": "no answer", "opaque": "e7a9b4b435b26fa0"}
+{"grade": "correct", "how": "integer", "opaque": "95780f11e70533e4"}
+{"grade": "correct", "how": "exact", "opaque": "f22b84480eae1fa0"}
+{"grade": "correct", "how": "integer", "opaque": "f78f9ec32ec35ea4"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "4a71a98ae743370b"}
+{"grade": "correct", "how": "string", "opaque": "dd2ed3f48e810e65"}
+{"grade": "correct", "how": "string", "opaque": "5bd750a3efbdd720"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "c47827ec449718c7"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "7b23b53fc5e5e9a6"}
+{"grade": "correct", "how": "letter", "opaque": "75b66a60ffd46626"}
+{"grade": "correct", "how": "string", "opaque": "26ef5ae59ea4203d"}
+{"grade": "correct", "how": "string", "opaque": "de6870b5318b185c"}
+{"grade": "correct", "how": "exact", "opaque": "98ef9a0e95aa194a"}
+{"grade": "incorrect", "how": "no answer", "opaque": "9deeed3b159a1187"}
+{"grade": "correct", "how": "exact", "opaque": "5b8dec00dbfcf1e6"}
+{"grade": "correct", "how": "exact", "opaque": "54657cf6afe013ea"}
+{"grade": "correct", "how": "integer", "opaque": "6db3e93191120840"}
+{"grade": "correct", "how": "integer", "opaque": "9c7627c1faabe64d"}
+{"grade": "incorrect", "how": "no answer", "opaque": "8739cddaff2c098d"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "3a5765d6d406996e"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "af39fa05317acdb1"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "dac32472a0cb7f75"}
+{"grade": "correct", "how": "integer", "opaque": "0fa8d9fa6b145ee1"}
+{"grade": "correct", "how": "string", "opaque": "dd23cdb487bffa80"}
+{"grade": "incorrect", "how": "no answer", "opaque": "88a5476157d8616c"}
+{"grade": "correct", "how": "letter", "opaque": "a38a21516c9dd359"}
+{"grade": "correct", "how": "string", "opaque": "6a747e18238ad6ec"}
+{"grade": "correct", "how": "letter", "opaque": "3bf22b1b236e6d95"}
+{"grade": "correct", "how": "exact", "opaque": "075d4a987a3b553b"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "0cc2fff028769f6b"}
+{"grade": "incorrect", "how": "no answer", "opaque": "b9ac76a8a17108d1"}
+{"grade": "correct", "how": "integer", "opaque": "4f03357ae4ca9f64"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "068e610ec2ddf986"}
+{"grade": "correct", "how": "string", "opaque": "e05e1baa3255eb53"}
+{"grade": "correct", "how": "exact", "opaque": "b0ca9d54fd69b24c"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "fa22a6056fe1459e"}
+{"grade": "correct", "how": "exact", "opaque": "3b249268ac20210f"}
+{"grade": "correct", "how": "string", "opaque": "4b77679de06c421c"}
+{"grade": "incorrect", "how": "no answer", "opaque": "10023bd768cc5359"}
+{"grade": "correct", "how": "exact", "opaque": "5200465019c18708"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "188ba24c53a4cd2d"}
+{"grade": "correct", "how": "exact", "opaque": "aa237e2b0dd2c522"}
+{"grade": "correct", "how": "letter", "opaque": "3d704651d250a881"}
+{"grade": "correct", "how": "exact", "opaque": "d368bd14b6659cda"}
+{"grade": "correct", "how": "letter", "opaque": "b8b46693973aefd7"}
+{"grade": "incorrect", "how": "no answer", "opaque": "24bc78522ce16e8d"}
+{"grade": "correct", "how": "exact", "opaque": "36660959fc183f5b"}
+{"grade": "correct", "how": "exact", "opaque": "aaea9033c724ce9a"}
+{"grade": "correct", "how": "exact_rational", "opaque": "cfb10d85597b3364"}
+{"grade": "correct", "how": "integer", "opaque": "105cf4e0c8716db1"}
+{"grade": "correct", "how": "letter", "opaque": "608061703a03af92"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "d7bc1d07c669943d"}
+{"grade": "correct", "how": "letter", "opaque": "bf9bcecd0dd7ab5d"}
+{"grade": "correct", "how": "string", "opaque": "79b59b623074dce3"}
+{"grade": "correct", "how": "string", "opaque": "5c362600f7223c47"}
+{"grade": "correct", "how": "string", "opaque": "dd09c4fcb40ea9c0"}
+{"grade": "correct", "how": "string", "opaque": "72e1187782efe7cf"}
+{"grade": "incorrect", "how": "no answer", "opaque": "e8d49ab15132c2eb"}
+{"grade": "correct", "how": "exact", "opaque": "9d64eb508ac14f08"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "3b7f2f37884c7be6"}
+{"grade": "correct", "how": "exact", "opaque": "2a4247744881b762"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "5a359f7a29930c20"}
+{"grade": "correct", "how": "string", "opaque": "84dd3267528bce51"}
+{"grade": "correct", "how": "string", "opaque": "6bf1a666c26f15d0"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "300b723b03c913fd"}
+{"grade": "correct", "how": "exact", "opaque": "de261f1df7dac7fb"}
+{"grade": "correct", "how": "integer", "opaque": "3be16317b775f0f0"}
+{"grade": "correct", "how": "letter", "opaque": "4eb9b6955edbffce"}
+{"grade": "correct", "how": "exact", "opaque": "bbca79e05fdafe0a"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "9469a71c78c9f89d"}
+{"grade": "correct", "how": "integer", "opaque": "a1c96126a9f55454"}
+{"grade": "correct", "how": "exact", "opaque": "f2eac2cc0b23d694"}
+{"grade": "correct", "how": "integer", "opaque": "099253d325b7a13b"}
+{"grade": "correct", "how": "string", "opaque": "6182d891b048373b"}
+{"grade": "correct", "how": "exact", "opaque": "852909895fa289be"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "a5baa9002d7d4369"}
+{"grade": "correct", "how": "exact", "opaque": "ef453e3978f58f73"}
+{"grade": "correct", "how": "exact_rational", "opaque": "033034a2228de08c"}
+{"grade": "incorrect", "how": "no answer", "opaque": "a087c8996a7bf726"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "53377094e6ec4fba"}
+{"grade": "incorrect", "how": "no answer", "opaque": "c96612acd2c4247e"}
+{"grade": "incorrect", "how": "no answer", "opaque": "734ec55dc649d419"}
+{"grade": "incorrect", "how": "no answer", "opaque": "d8cc8e365e518c2f"}
+{"grade": "correct", "how": "letter", "opaque": "0c646d6611fccc30"}
+{"grade": "incorrect", "how": "no answer", "opaque": "cdafd573e4e1ed4b"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "b3e5c707834d17b3"}
+{"grade": "correct", "how": "string", "opaque": "2e483f4f206b6681"}
+{"grade": "correct", "how": "letter", "opaque": "78a002870f3f0bd6"}
+{"grade": "correct", "how": "letter", "opaque": "9c44f4367dd266e0"}
+{"grade": "incorrect", "how": "no answer", "opaque": "448c6af037d256e9"}
+{"grade": "correct", "how": "integer", "opaque": "1eea0cab29312a6e"}
+{"grade": "correct", "how": "integer", "opaque": "6cfa2a7bfac0f178"}
+{"grade": "correct", "how": "letter", "opaque": "e77ab2ad03d1ccef"}
+{"grade": "correct", "how": "letter", "opaque": "3310cd19ad4eaf9b"}
+{"grade": "correct", "how": "letter", "opaque": "d6e54c94ffdb1ca1"}
+{"grade": "correct", "how": "exact", "opaque": "2251062363506e2d"}
+{"grade": "correct", "how": "letter", "opaque": "dae5e090f9d2258b"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "1ffe62649aec9de3"}
+{"grade": "correct", "how": "letter", "opaque": "a844664c1cecf63a"}
+{"grade": "correct", "how": "integer", "opaque": "03b318f52397f220"}
+{"grade": "correct", "how": "string", "opaque": "4ec9f15b5538d797"}
+{"grade": "correct", "how": "exact", "opaque": "a22d4bdd3bb0de22"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "cf5790c94844a9a1"}
+{"grade": "correct", "how": "integer", "opaque": "611582eded0d5649"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "0c82a449ba82a7f1"}
+{"grade": "correct", "how": "string", "opaque": "dc2fa10e4c058c76"}
+{"grade": "correct", "how": "string", "opaque": "127ffdc5e4d41e56"}
+{"grade": "incorrect", "how": "no answer", "opaque": "41f3629b1a3b0909"}
+{"grade": "correct", "how": "exact", "opaque": "7ae6074de8e6acca"}
+{"grade": "incorrect", "how": "no answer", "opaque": "22caaafe48c822e3"}
+{"grade": "correct", "how": "string", "opaque": "acdc8ff1d46cbed5"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "47b26673509d8635"}
+{"grade": "correct", "how": "letter", "opaque": "d3ca4f1bff6fa071"}
+{"grade": "correct", "how": "exact", "opaque": "6e51536951ad476a"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "ae885a1e7066f5c7"}
+{"grade": "correct", "how": "exact", "opaque": "e90401b7e03af9a3"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "54595b1c8f99fbb9"}
+{"grade": "correct", "how": "exact", "opaque": "c05e5e013fa1cae1"}
+{"grade": "correct", "how": "letter", "opaque": "6582c2b4a26198e3"}
+{"grade": "correct", "how": "integer", "opaque": "0ba4c470f16284fc"}
+{"grade": "correct", "how": "letter", "opaque": "8731f581df804997"}
+{"grade": "correct", "how": "string", "opaque": "d05a571199d4f3ce"}
+{"grade": "correct", "how": "letter", "opaque": "41b47649e270780b"}
+{"grade": "correct", "how": "integer", "opaque": "9387b36fffecc5c5"}
+{"grade": "correct", "how": "exact", "opaque": "c36943bb92f4f58c"}
+{"grade": "correct", "how": "exact", "opaque": "0db2ee1edbab2996"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "64656e250c82ea40"}
+{"grade": "correct", "how": "string", "opaque": "133b64d471178941"}
+{"grade": "correct", "how": "string", "opaque": "02edde11f54ce8af"}
+{"grade": "correct", "how": "integer", "opaque": "a9e85f77d31827fd"}
+{"grade": "incorrect", "how": "no answer", "opaque": "2d4df7168abcafeb"}
+{"grade": "correct", "how": "exact", "opaque": "c2435f90f735382f"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "0cf2e7dc48faaa5f"}
+{"grade": "correct", "how": "integer", "opaque": "0a39799b1b57de95"}
+{"grade": "correct", "how": "letter", "opaque": "97ec8c1b9961af31"}
+{"grade": "correct", "how": "string", "opaque": "6f2029cc6a1fbd93"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "91a580cc04bf35fa"}
+{"grade": "correct", "how": "integer", "opaque": "9c73c426485ed3e8"}
+{"grade": "correct", "how": "letter", "opaque": "4b0c4f091afab587"}
+{"grade": "correct", "how": "letter", "opaque": "0afe95133c63102d"}
+{"grade": "correct", "how": "exact", "opaque": "97de5f45645f111b"}
+{"grade": "correct", "how": "exact", "opaque": "20027f8db658c53e"}
+{"grade": "incorrect", "how": "no answer", "opaque": "d6092a2c86b2f4bc"}
+{"grade": "correct", "how": "string", "opaque": "5473527c31cf557f"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "7720f4d160cefbfc"}
+{"grade": "correct", "how": "letter", "opaque": "990bf04f524cdbd2"}
+{"grade": "incorrect", "how": "no answer", "opaque": "81aaa335cbf27d01"}
+{"grade": "correct", "how": "integer", "opaque": "985fe8266d03d840"}
+{"grade": "incorrect", "how": "no answer", "opaque": "eff92af3bef03db7"}
+{"grade": "correct", "how": "letter", "opaque": "fe2bbcbe06cb5be4"}
+{"grade": "incorrect", "how": "no answer", "opaque": "89ae26cf8d48e30c"}
+{"grade": "correct", "how": "exact", "opaque": "ff0e1b509e93d2a6"}
+{"grade": "correct", "how": "integer", "opaque": "11391fb7c2597651"}
+{"grade": "incorrect", "how": "no answer", "opaque": "9584ef545b7c6d5e"}
+{"grade": "correct", "how": "integer", "opaque": "af9dba34b6d64db9"}
+{"grade": "correct", "how": "exact", "opaque": "c50c64759cfec3f4"}
+{"grade": "correct", "how": "integer", "opaque": "79f9f26c2ec2976d"}
+{"grade": "correct", "how": "integer", "opaque": "5d7450904613f71e"}
+{"grade": "incorrect", "how": "no answer", "opaque": "fb29a1db4ebc0fd5"}
+{"grade": "correct", "how": "exact", "opaque": "8c7b102659c93ad4"}
+{"grade": "correct", "how": "exact", "opaque": "f56879fa4fc27053"}
+{"grade": "correct", "how": "exact", "opaque": "49e7d6fa440faad6"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "d9b31f5fc7b89f77"}
+{"grade": "correct", "how": "exact", "opaque": "53c08bb857ccb076"}
+{"grade": "correct", "how": "exact", "opaque": "156da74d0e136ab9"}
+{"grade": "correct", "how": "integer", "opaque": "64d6b732f5e42a9b"}
+{"grade": "correct", "how": "letter", "opaque": "875f1b0869726453"}
+{"grade": "correct", "how": "letter", "opaque": "7b751f8d00dd1407"}
+{"grade": "incorrect", "how": "no answer", "opaque": "9699f0c6bbd72c92"}
+{"grade": "correct", "how": "exact", "opaque": "cf0386a7edb99e32"}
+{"grade": "correct", "how": "string", "opaque": "96cf54e84a3168e5"}
+{"grade": "correct", "how": "exact", "opaque": "928df4836019d16b"}
+{"grade": "correct", "how": "integer", "opaque": "558412aaf17683cd"}
+{"grade": "correct", "how": "letter", "opaque": "10c1489c37c1b76e"}
+{"grade": "correct", "how": "integer", "opaque": "4a7f2e9903757ac7"}
+{"grade": "correct", "how": "integer", "opaque": "53f774bf5a015784"}
+{"grade": "correct", "how": "string", "opaque": "bbc4be432eaebc9e"}
+{"grade": "correct", "how": "exact", "opaque": "6da86df7454747b2"}
+{"grade": "correct", "how": "letter", "opaque": "4c1fad36dd3766cd"}
+{"grade": "correct", "how": "integer", "opaque": "00208d1fea5b3150"}
+{"grade": "correct", "how": "string", "opaque": "344ce164db75c5a2"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "11c8c9f649334c74"}
+{"grade": "correct", "how": "exact", "opaque": "e5087fb15c480f35"}
+{"grade": "correct", "how": "integer", "opaque": "680a569607a19c7b"}
+{"grade": "correct", "how": "exact_rational", "opaque": "e6bf4c540c3ecb24"}
+{"grade": "correct", "how": "integer", "opaque": "d95d01867b16d91c"}
+{"grade": "incorrect", "how": "no answer", "opaque": "b0d7c10cef186cc3"}
+{"grade": "incorrect", "how": "no answer", "opaque": "2c55bcdbf2f00074"}
+{"grade": "correct", "how": "integer", "opaque": "1d7839ea2e717204"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "d0c6c83df5b1af12"}
+{"grade": "incorrect", "how": "no answer", "opaque": "1c1b4ef14ae194b8"}
+{"grade": "incorrect", "how": "no answer", "opaque": "a13e536f3dceca93"}
+{"grade": "correct", "how": "integer", "opaque": "4d141814d1f3bd4f"}
+{"grade": "correct", "how": "exact", "opaque": "a4808cf8c76b86e2"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "5f18eae2516464fb"}
+{"grade": "incorrect", "how": "no answer", "opaque": "e8c6badd5445a63e"}
+{"grade": "correct", "how": "string", "opaque": "9de594f63a503183"}
+{"grade": "correct", "how": "exact", "opaque": "399aab281dc331c8"}
+{"grade": "correct", "how": "letter", "opaque": "5e685279384b31e1"}
+{"grade": "correct", "how": "integer", "opaque": "6de7d6beff7293cb"}
+{"grade": "correct", "how": "integer", "opaque": "ef435a7254ef0173"}
+{"grade": "correct", "how": "exact", "opaque": "aa9d7ca0608624f7"}
+{"grade": "correct", "how": "letter", "opaque": "436828892dd5df5c"}
+{"grade": "correct", "how": "string", "opaque": "64f76718569117a0"}
+{"grade": "correct", "how": "integer", "opaque": "b56a4d317bd14850"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "0664d832cba94f74"}
+{"grade": "correct", "how": "string", "opaque": "e9f8b19c8d755e6e"}
+{"grade": "incorrect", "how": "no answer", "opaque": "22766f29521c5b21"}
+{"grade": "incorrect", "how": "no answer", "opaque": "0a6589faa96874e9"}
+{"grade": "correct", "how": "exact", "opaque": "160577b5328e7431"}
+{"grade": "correct", "how": "letter", "opaque": "00bc03bd86d47107"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "a6e8bcd630449ffa"}
+{"grade": "correct", "how": "integer", "opaque": "9cc84869166db940"}
+{"grade": "correct", "how": "exact", "opaque": "0df5f265b12fa00e"}
+{"grade": "correct", "how": "string", "opaque": "a72cbd3d8efc961f"}
+{"grade": "incorrect", "how": "no answer", "opaque": "d4e1ab9cac39585a"}
+{"grade": "correct", "how": "exact", "opaque": "dd5b865099676a8d"}
+{"grade": "correct", "how": "exact", "opaque": "367c93413766981e"}
+{"grade": "correct", "how": "string", "opaque": "d652aa46419b7660"}
+{"grade": "correct", "how": "string", "opaque": "25e54edd1e50b519"}
+{"grade": "correct", "how": "letter", "opaque": "a89777fe8ee211f4"}
+{"grade": "correct", "how": "exact", "opaque": "a9f0c07a0f87ad0b"}
+{"grade": "correct", "how": "string", "opaque": "158c91f7bad27e40"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "d2c4a94477627bff"}
+{"grade": "correct", "how": "string", "opaque": "da7dc4e6beefb15e"}
+{"grade": "incorrect", "how": "no answer", "opaque": "05332c8a9a7403f2"}
+{"grade": "correct", "how": "exact", "opaque": "f180bbee4f4280e1"}
+{"grade": "correct", "how": "letter", "opaque": "6708e5302386d3a2"}
+{"grade": "correct", "how": "exact", "opaque": "91f8d71ca81f552d"}
+{"grade": "correct", "how": "integer", "opaque": "13cbae08b8b9e179"}
+{"grade": "correct", "how": "string", "opaque": "4745a5ec00b50d6f"}
+{"grade": "correct", "how": "exact", "opaque": "dcc85a5432f6e566"}
+{"grade": "correct", "how": "exact", "opaque": "1dfbc6b505bac57e"}
+{"grade": "incorrect", "how": "no answer", "opaque": "83ea24aef1682b9d"}
+{"grade": "correct", "how": "exact", "opaque": "688f7e3df9a2b82c"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "c28fe8f5797a31c2"}
+{"grade": "incorrect", "how": "no answer", "opaque": "7870ee467275f8e9"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "61725f35e6f5d90d"}
+{"grade": "correct", "how": "exact", "opaque": "ad6f4aed55842a70"}
+{"grade": "correct", "how": "exact", "opaque": "4f08a17e02fcd1c4"}
+{"grade": "correct", "how": "exact", "opaque": "53c7cfae13b76ca4"}
+{"grade": "incorrect", "how": "no answer", "opaque": "41a9b16771486bf8"}
+{"grade": "correct", "how": "string", "opaque": "f4e9e09b55d061e9"}
+{"grade": "correct", "how": "string", "opaque": "64fe2afa4606ecc5"}
+{"grade": "correct", "how": "exact", "opaque": "60be12f7a7797179"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "372ba5d4e07e7c5c"}
+{"grade": "incorrect", "how": "no answer", "opaque": "ed0c30acf62b74b8"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "53c48d557d897331"}
+{"grade": "correct", "how": "string", "opaque": "c4666309ee6627fd"}
+{"grade": "correct", "how": "exact_rational", "opaque": "1be36370bcdb3ea2"}
+{"grade": "correct", "how": "exact", "opaque": "d45d2e49cda8f74e"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "9782af5943d63306"}
+{"grade": "correct", "how": "string", "opaque": "9ed5f357aae02792"}
+{"grade": "incorrect", "how": "no answer", "opaque": "d1796b255b50a0bb"}
+{"grade": "correct", "how": "letter", "opaque": "84782b99e01d178d"}
+{"grade": "incorrect", "how": "no answer", "opaque": "e9eefc9c9d2e6f40"}
+{"grade": "incorrect", "how": "no answer", "opaque": "ec12333e0b921f87"}
+{"grade": "incorrect", "how": "no answer", "opaque": "bfe641580f69e4a5"}
+{"grade": "correct", "how": "exact", "opaque": "e614c06a75bc73c9"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "df40801061d426d7"}
+{"grade": "correct", "how": "letter", "opaque": "89882e17fe4e1a67"}
+{"grade": "incorrect", "how": "no answer", "opaque": "b5e186c884e5840c"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "df56cfd166ee1f21"}
+{"grade": "correct", "how": "letter", "opaque": "2347ae28d5f8edb6"}
+{"grade": "correct", "how": "string", "opaque": "d87b2aa30efb1c15"}
+{"grade": "incorrect", "how": "no answer", "opaque": "efd4cbe84779c35f"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "af6f6a0841decf93"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "d7c4050ad693512e"}
+{"grade": "correct", "how": "exact", "opaque": "d4fdb8490b1e15a3"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "51644fa56f5619a6"}
+{"grade": "correct", "how": "string", "opaque": "e7ee8d930ea96844"}
+{"grade": "correct", "how": "exact_rational", "opaque": "694d7bd9a89faf24"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "07f4d2bab86e780b"}
+{"grade": "correct", "how": "integer", "opaque": "d10f865aabf39c2c"}
+{"grade": "correct", "how": "exact", "opaque": "e73e0fcf580cc44d"}
+{"grade": "correct", "how": "letter", "opaque": "17c20b184d64db3a"}
+{"grade": "correct", "how": "letter", "opaque": "b3b4c791e18a7d15"}
+{"grade": "correct", "how": "string", "opaque": "85a4c26f5de5c6c9"}
+{"grade": "correct", "how": "exact", "opaque": "ba8451867e6921cf"}
+{"grade": "incorrect", "how": "no answer", "opaque": "11c35d1af0f667f2"}
+{"grade": "correct", "how": "exact", "opaque": "b3ee86c05652d335"}
+{"grade": "correct", "how": "integer", "opaque": "459897beb74d5c89"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "40728c9cd8b58270"}
+{"grade": "correct", "how": "exact", "opaque": "9e32420be0d3a40e"}
+{"grade": "correct", "how": "exact", "opaque": "e82e983a241effce"}
+{"grade": "correct", "how": "letter", "opaque": "f3fae0d7a10e9787"}
+{"grade": "correct", "how": "exact_rational", "opaque": "1dad6bf41875b338"}
+{"grade": "correct", "how": "letter", "opaque": "3759aabdb98b9e63"}
+{"grade": "correct", "how": "letter", "opaque": "88f31daa60916412"}
+{"grade": "correct", "how": "exact", "opaque": "f56a254768f1bdfa"}
+{"grade": "correct", "how": "integer", "opaque": "90dc2ec2d17c2277"}
+{"grade": "incorrect", "how": "no answer", "opaque": "73f583aad4cb793b"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "7efa4f7ab167b492"}
+{"grade": "incorrect", "how": "no answer", "opaque": "f34a95ced55e941d"}
+{"grade": "correct", "how": "exact", "opaque": "e6681d2ae2554b77"}
+{"grade": "correct", "how": "string", "opaque": "8f45406e335978fb"}
+{"grade": "incorrect", "how": "no answer", "opaque": "d655f39e5c86941f"}
+{"grade": "correct", "how": "letter", "opaque": "41936626b110a50b"}
+{"grade": "correct", "how": "string", "opaque": "aaba703957898509"}
+{"grade": "correct", "how": "integer", "opaque": "d391d2244f28f581"}
+{"grade": "incorrect", "how": "no answer", "opaque": "aa042143e6a1f4fa"}
+{"grade": "correct", "how": "integer", "opaque": "b0cedd6bed34f271"}
+{"grade": "correct", "how": "exact", "opaque": "a665a9b41c23cf26"}
+{"grade": "correct", "how": "exact", "opaque": "c3d8eeab8cab0ac8"}
+{"grade": "incorrect", "how": "no answer", "opaque": "94354f21f578d71b"}
+{"grade": "correct", "how": "letter", "opaque": "0ec43d9876450c28"}
+{"grade": "correct", "how": "letter", "opaque": "450620c7f5955f6f"}
+{"grade": "correct", "how": "integer", "opaque": "ffe37c07f99a9c55"}
+{"grade": "correct", "how": "exact", "opaque": "7f4f9e3f68c4b85a"}
+{"grade": "correct", "how": "exact", "opaque": "dfb76aa6e7a24a95"}
+{"grade": "correct", "how": "letter", "opaque": "d9533e855d0b6d8b"}
+{"grade": "correct", "how": "exact", "opaque": "b83b8bcf4e49111a"}
+{"grade": "incorrect", "how": "no answer", "opaque": "a8d757d02a0c2126"}
+{"grade": "correct", "how": "string", "opaque": "65450a515831bdfb"}
+{"grade": "correct", "how": "letter", "opaque": "a7fb0200b578dc4f"}
+{"grade": "correct", "how": "integer", "opaque": "629d5570e59f595b"}
+{"grade": "correct", "how": "exact", "opaque": "902148115de57f52"}
+{"grade": "correct", "how": "string", "opaque": "a72db14e2cf0e9bc"}
+{"grade": "correct", "how": "integer", "opaque": "876fa811629a3a3a"}
+{"grade": "correct", "how": "letter", "opaque": "642fceb565318430"}
+{"grade": "correct", "how": "exact", "opaque": "eabc7b840724ee68"}
+{"grade": "correct", "how": "letter", "opaque": "1ec793a8aec1af44"}
+{"grade": "correct", "how": "integer", "opaque": "414d7ceecc339c30"}
+{"grade": "correct", "how": "exact", "opaque": "4528ea109eb62080"}
+{"grade": "correct", "how": "string", "opaque": "4a1d32f1daf4da54"}
+{"grade": "incorrect", "how": "no answer", "opaque": "326651e22f74ebd5"}
+{"grade": "correct", "how": "integer", "opaque": "2bcc5391c317c548"}
+{"grade": "correct", "how": "letter", "opaque": "c3291902a73f7092"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "fa03c025190e8890"}
+{"grade": "correct", "how": "string", "opaque": "c056dfae0fc19371"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "7cc9a1e519fbe514"}
+{"grade": "correct", "how": "exact", "opaque": "0449407e4937582f"}
+{"grade": "correct", "how": "exact", "opaque": "cfdc844f55488a3a"}
+{"grade": "correct", "how": "exact", "opaque": "cc4a5722acb8cfc0"}
+{"grade": "correct", "how": "integer", "opaque": "d0508f8fdf7c5292"}
+{"grade": "correct", "how": "letter", "opaque": "35253b16709dbcb3"}
+{"grade": "correct", "how": "string", "opaque": "96d59eb5070ed271"}
+{"grade": "correct", "how": "integer", "opaque": "9abbab3eaeb6a700"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "e303c22a3a599d52"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "6af3f4199154d147"}
+{"grade": "correct", "how": "integer", "opaque": "a1c3797bfba05c07"}
+{"grade": "correct", "how": "string", "opaque": "afb7591fab48df8c"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "2e5605cf78c07529"}
+{"grade": "correct", "how": "integer", "opaque": "04d7298284f18b17"}
+{"grade": "correct", "how": "letter", "opaque": "94f4ea212daa671c"}
+{"grade": "correct", "how": "exact", "opaque": "eb970fd82681c858"}
+{"grade": "correct", "how": "exact", "opaque": "79931602706693e7"}
+{"grade": "correct", "how": "integer", "opaque": "8108ce5a6c4740e5"}
+{"grade": "correct", "how": "string", "opaque": "9e8a183bd1b71c82"}
+{"grade": "correct", "how": "letter", "opaque": "cfe4834250bed414"}
+{"grade": "correct", "how": "string", "opaque": "0bca208f970a2377"}
+{"grade": "correct", "how": "integer", "opaque": "9f88b7d53da8a890"}
+{"grade": "correct", "how": "exact", "opaque": "664855ab804c3d29"}
+{"grade": "correct", "how": "letter", "opaque": "05d566c18cbac691"}
+{"grade": "correct", "how": "exact", "opaque": "620f29048d0a0942"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "18081a6ab330e1af"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "9e4870204f82bd84"}
+{"grade": "correct", "how": "integer", "opaque": "b0afbfbdc7873c10"}
+{"grade": "correct", "how": "exact", "opaque": "470a64db8acac370"}
+{"grade": "correct", "how": "letter", "opaque": "5245b1c6cb389370"}
+{"grade": "correct", "how": "letter", "opaque": "ec97240703335bcd"}
+{"grade": "correct", "how": "letter", "opaque": "4fd92f9fe6ac99fb"}
+{"grade": "correct", "how": "letter", "opaque": "17ff8d663ba244dd"}
+{"grade": "correct", "how": "string", "opaque": "30734875e3826834"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "7de9425c73a381fa"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "9a7210a3c3808672"}
+{"grade": "correct", "how": "letter", "opaque": "04354044a3fec80c"}
+{"grade": "correct", "how": "string", "opaque": "9dd4a67567c65016"}
+{"grade": "correct", "how": "integer", "opaque": "fe683e6cac746686"}
+{"grade": "correct", "how": "integer", "opaque": "eb9e2a6bcfe67b09"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "b8cbf14d1c84b330"}
+{"grade": "correct", "how": "string", "opaque": "275ec5771214cc1b"}
+{"grade": "correct", "how": "letter", "opaque": "a95d60260eceb034"}
+{"grade": "correct", "how": "string", "opaque": "ca6afc23931c324d"}
+{"grade": "correct", "how": "exact", "opaque": "c154069c89ed5faa"}
+{"grade": "correct", "how": "integer", "opaque": "7001d2bd20350ec3"}
+{"grade": "correct", "how": "string", "opaque": "f7770760b11a3f29"}
+{"grade": "correct", "how": "integer", "opaque": "39d870d01bef1eec"}
+{"grade": "correct", "how": "exact_rational", "opaque": "73832eafa77e831e"}
+{"grade": "correct", "how": "letter", "opaque": "160822d25e675b29"}
+{"grade": "correct", "how": "string", "opaque": "eedc3d3d580b7409"}
+{"grade": "correct", "how": "letter", "opaque": "eb0e1b8ef8bf68c5"}
+{"grade": "correct", "how": "string", "opaque": "2384551702229510"}
+{"grade": "correct", "how": "exact", "opaque": "c5f9e1a08a00cbd4"}
+{"grade": "correct", "how": "exact", "opaque": "db99f89c0bbd9444"}
+{"grade": "correct", "how": "string", "opaque": "eab5d47dcdf6a5f0"}
+{"grade": "correct", "how": "exact", "opaque": "12939982424ed6c9"}
+{"grade": "correct", "how": "exact", "opaque": "3cd05cf0086ccdd6"}
+{"grade": "correct", "how": "exact", "opaque": "e1d52759189484ab"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "9cb7eae985624f9d"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "e2fa6f013b35af34"}
+{"grade": "correct", "how": "integer", "opaque": "2706ad7f79323074"}
+{"grade": "correct", "how": "exact", "opaque": "fcfa8dc8cc7f5a69"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "e7aeefa6e63d2e5f"}
+{"grade": "correct", "how": "exact", "opaque": "16d986e24198f390"}
+{"grade": "incorrect", "how": "no answer", "opaque": "d308a73729683386"}
+{"grade": "correct", "how": "string", "opaque": "72fc948731bc4531"}
+{"grade": "correct", "how": "string", "opaque": "2a49d012fb57358f"}
+{"grade": "correct", "how": "exact", "opaque": "ed100a0d59f7a178"}
+{"grade": "correct", "how": "string", "opaque": "d8a8af2183fb29dd"}
+{"grade": "correct", "how": "exact", "opaque": "57e5a195cda9c95f"}
+{"grade": "correct", "how": "string", "opaque": "9b142882450f92b8"}
+{"grade": "correct", "how": "exact", "opaque": "479f4b28e1e41245"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "499a12f5a9d105e7"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "01cc23a8b67317be"}
+{"grade": "correct", "how": "letter", "opaque": "5137028b5b2f6da7"}
+{"grade": "incorrect", "how": "no answer", "opaque": "df159662751822f2"}
+{"grade": "correct", "how": "exact", "opaque": "2cfba5841cf78c37"}
+{"grade": "incorrect", "how": "letter", "opaque": "da7e5773a7117883"}
+{"grade": "correct", "how": "exact", "opaque": "dfbfa14bd2a1870e"}
+{"grade": "correct", "how": "string", "opaque": "73a782c15f4135d9"}
+{"grade": "incorrect", "how": "no answer", "opaque": "eedfb300469a4859"}
+{"grade": "correct", "how": "string", "opaque": "0c77392110fef188"}
+{"grade": "correct", "how": "string", "opaque": "7c62b0bf98286d70"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "038490c986832cc9"}
+{"grade": "correct", "how": "string", "opaque": "8715a1d36cdb5f78"}
+{"grade": "correct", "how": "integer", "opaque": "5aa6fe862158cbc0"}
+{"grade": "correct", "how": "integer", "opaque": "1ec30fe8a5664f2e"}
+{"grade": "correct", "how": "letter", "opaque": "ed8d1de0b8e66f7d"}
+{"grade": "correct", "how": "exact", "opaque": "1e4b4c37e5dea2ce"}
+{"grade": "correct", "how": "integer", "opaque": "ab308a8a09ea38cc"}
+{"grade": "correct", "how": "integer", "opaque": "a9238bf32497f9d1"}
+{"grade": "correct", "how": "integer", "opaque": "474d25fea5b589cc"}
+{"grade": "correct", "how": "integer", "opaque": "56bc202c2e318b03"}
+{"grade": "correct", "how": "exact", "opaque": "ecfc4eec821944e2"}
+{"grade": "correct", "how": "exact", "opaque": "774f66db134e7b04"}
+{"grade": "correct", "how": "integer", "opaque": "48277332c60d4e7e"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "0be09a66416bb43c"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "395219eadbe241ee"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "67d4f4530dd06a03"}
+{"grade": "correct", "how": "letter", "opaque": "f3771c8e5e9e641b"}
+{"grade": "correct", "how": "exact", "opaque": "c1266cb2d92935ad"}
+{"grade": "correct", "how": "string", "opaque": "bf667a2151d7ac22"}
+{"grade": "correct", "how": "letter", "opaque": "a1fd451dbd316cf1"}
+{"grade": "correct", "how": "exact", "opaque": "a1ec2a4ee429fcd8"}
+{"grade": "incorrect", "how": "no answer", "opaque": "5b6938d1dbf12d3c"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "b3983317ade21495"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "71ee1f94d85c41ca"}
+{"grade": "correct", "how": "letter", "opaque": "92ed15b096125ef9"}
+{"grade": "correct", "how": "exact_canonical_string", "opaque": "f0e326bc5e654971"}
+{"grade": "correct", "how": "exact", "opaque": "e79e500ec5795902"}
+{"grade": "correct", "how": "string", "opaque": "4a57224267cf9a65"}
+{"grade": "incorrect", "how": "no answer", "opaque": "03b34e14805ee029"}
+{"grade": "correct", "how": "integer", "opaque": "19cbb5f714c41379"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "57c2e8c1574c9dbf"}
+{"grade": "correct", "how": "letter", "opaque": "1eded228deee9e90"}
+{"grade": "correct", "how": "exact", "opaque": "9c9264686be48419"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "97bd5048b345f909"}
+{"grade": "review", "how": "MATH_equivalence_unsupported", "opaque": "ae058a66dcf3c0f4"}

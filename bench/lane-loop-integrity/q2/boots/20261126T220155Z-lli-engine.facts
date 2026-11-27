@@ -1,0 +1,5 @@
+image sha256:5bf8f03003517eb9bfd29354849f0b37aa79e34224dc24b340057b7cfa4517df
+arm P kernels S drafter dflash2 sessions /home/dgx02/work/lli/sessions.JwCS6z
+TENSORFOLD_MEMORY_RESERVE_GIB=9
+TF_INKLING2_ATTN_FP8=1
+TF_INKLING2_PREFILL_TC=1

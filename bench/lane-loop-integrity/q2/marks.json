@@ -1,0 +1,13 @@
+{
+ "<|message_user|>": 200000,
+ "<|message_model|>": 200001,
+ "<|message_system|>": 200002,
+ "<|message_tool|>": 200003,
+ "<|content_text|>": 200004,
+ "<|content_thinking|>": 200008,
+ "<|end_message|>": 200010,
+ "<|content_model_end_sampling|>": 200006,
+ "<|content_invoke_tool_json|>": 200049,
+ "<|content_invoke_tool_text|>": 200057,
+ "<|content_tool_error|>": 200022
+}
